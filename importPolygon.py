@@ -34,7 +34,7 @@ class importPolygon(QObject, snapTraceUtilsMixin):
     def __init__(self, currFeature):
         super().__init__()
 
-        QgsMessageLog.logMessage("In importPolygon: " + str(currFeature.id()) + ";" + str(currFeature.attribute("id")), tag="TOMs panel")
+        QgsMessageLog.logMessage("In importPolygon: " + str(currFeature.id()), tag="TOMs panel")
 
         self.currFeature = currFeature
         self.currGeometry = currFeature.geometry()
@@ -94,6 +94,9 @@ class importPolygon(QObject, snapTraceUtilsMixin):
             splitIndex = self.findStartPointForLine()
             endList = len(ptsList) - 1
 
+            if splitIndex is None:
+                return newLineList
+
         QgsMessageLog.logMessage("In getListPointsInPolygonWithinTolerance. SplitIndex: " + str(splitIndex) + " ; " + str(endList), tag="TOMs panel")
 
         for (index, pt) in ptsList[splitIndex:endList]:
@@ -114,16 +117,18 @@ class importPolygon(QObject, snapTraceUtilsMixin):
 
         currListLocation = 0
 
-        if ptsList[-1][0] == lenOriginalList-1:
+        if len(ptsList) > 0:
 
-            """ Loop back to find start of missing """
+            if ptsList[-1][0] == lenOriginalList-1:
 
-            currVertexNr = 0
+                """ Loop back to find start of missing """
 
-            for (vertexNr, vertex) in ptsList:
-                if vertexNr != currListLocation:
-                    break
-                currListLocation = currListLocation + 1
+                currVertexNr = 0
+
+                for (vertexNr, vertex) in ptsList:
+                    if vertexNr != currListLocation:
+                        break
+                    currListLocation = currListLocation + 1
 
         return currListLocation
 
@@ -142,9 +147,10 @@ class importPolygon(QObject, snapTraceUtilsMixin):
 
                 #currBisectorAngle = self.currGeometry.angleAtVertex(currVertexNr)
                 #if currBisectorAngle < math.pi/2:
+                QgsMessageLog.logMessage("In findStartPointForLine. vertex: " + str(currVertexNr) + "; " + str(angle), tag="TOMs panel")
                 if angle < 90.0:
                     smallAngleList.append(currVertexNr)
-                    QgsMessageLog.logMessage("In findStartPointForLine. adding: " + str(currVertexNr), tag="TOMs panel")
+                    QgsMessageLog.logMessage("In findStartPointForLine. ADDING: " + str(currVertexNr), tag="TOMs panel")
 
                 currVertexNr = currVertexNr + 1
 

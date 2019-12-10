@@ -289,14 +289,16 @@ class ImportWandsworth2:
         # Snap node to nearest point
 
         for currFeature in polygonLayer.getFeatures():
-            ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer)
+            ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
+            if len(ptsList) < 2:
+                continue
             newLine = QgsGeometry.fromPolylineXY(ptsList)
 
             fields = outputLayer.fields()
             new_feat = QgsFeature(fields)
 
             """ somehow neeed to add attributes ... """
-            self.copyAttributesFromList(new_feat, outputLayer, currFeature, matchLists.baysMatchList)
+            self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
 
             new_feat.setGeometry(newLine)
             outputLayer.addFeature(new_feat)
@@ -319,17 +321,17 @@ class ImportWandsworth2:
 
         return
 
-    def copyAttributesFromList(self, newFeature, newFeatureLayer, oldFeature, matchList):
+    def copyAttributesFromList(self, newFeature, newFeatureLayer, oldFeature, oldFeatureLayer, matchList):
 
-        newFields = newFeatureLayer.fields()
+        oldFields = oldFeatureLayer.fields()
 
         """ Loop though each of the fields in the new feature ..."""
-        for newField in newFields:
+        for oldField in oldFields:
 
             # QgsMessageLog.logMessage("In copyBayAttributes. field: " + newField.name(), tag="TOMs panel")
 
             """ Check to see if the field is to be copied """
             for (oldFieldName, newFieldName) in matchList:
-                if newField.name() == newFieldName:
+                if oldField.name() == oldFieldName:
                     # QgsMessageLog.logMessage("In copyBayAttributes. setting field: " + newField.name(), tag="TOMs panel")
                     newFeature.setAttribute(newFieldName, oldFeature.attribute(oldFieldName))

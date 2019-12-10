@@ -11,11 +11,21 @@
 class matchLists(object):
 
     baysMatchList = [
+        ("id", "W_ID"),
+        ("fid", "W_ID"),
+        ("OBJECTID_", "W_ID"),
         ("road_name", "RoadName"),
+        ("Road_Name", "RoadName"),
         ("type", "WBayType1"),
         ("bay_type", "WBayType2"),
         ("category", "Category"),
         ("hours_of_o", "WTimePeriod"),
         ("partial_fu", "WGeometryType"),
-        ("comment_", "WNotes")
+        ("comment_", "WNotes"),
+        ("colour", "WColour"),
+        ("Colour", "WColour"),
+        ("signage", "WTimePeriod"),
+        ("Signage", "WTimePeriod"),
+        ("type_of_en", "WLineType"),
+        ("Type_Of_En", "WLineType"),
     ]
