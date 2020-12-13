@@ -270,7 +270,7 @@ class ImportWandsworth2:
 
     def generateLinesFromPolygons(self, polygonLayer, snapLineLayer, outputLayer, tolerance):
 
-        QgsMessageLog.logMessage("In snapNodes", tag="TOMs panel")
+        TOMsMessageLog.logMessage("In generateLinesFromPolygons", level=Qgis.Info)
 
         editStartStatus = outputLayer.startEditing()
 
@@ -281,7 +281,7 @@ class ImportWandsworth2:
 
         if editStartStatus is False:
             # save the active layer
-            QgsMessageLog.logMessage("Error: snapNodesP: Not able to start transaction on " + outputLayer.name())
+            TOMsMessageLog.logMessage("Error: snapNodesP: Not able to start transaction on " + outputLayer.name(), level=Qgis.Info)
             reply = QMessageBox.information(None, "Error",
                                             "SnapNodes: Not able to start transaction on " + outputLayer.name(),
                                             QMessageBox.Ok)
@@ -298,10 +298,72 @@ class ImportWandsworth2:
             new_feat = QgsFeature(fields)
 
             """ somehow neeed to add attributes ... """
-            self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
+            #self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
 
             new_feat.setGeometry(newLine)
             outputLayer.addFeature(new_feat)
+
+        editCommitStatus = outputLayer.commitChanges()
+
+        """reply = QMessageBox.information(None, "Check",
+                                        "SnapNodes: Status for commit to " + sourceLineLayer.name() + " is: " + str(
+                                            editCommitStatus),
+                                        QMessageBox.Ok)"""
+
+        if editCommitStatus is False:
+            # save the active layer
+            QgsMessageLog.logMessage("Error: snapNodesP: Changes to " + outputLayer.name() + " failed: " + str(
+                outputLayer.commitErrors()))
+            reply = QMessageBox.information(None, "Error",
+                                            "SnapNodes: Changes to " + outputLayer.name() + " failed: " + str(
+                                                outputLayer.commitErrors()),
+                                            QMessageBox.Ok)
+
+        return
+
+    def generateLinesStringFromLines(self, inputLayer, snapLineLayer, outputLayer, tolerance):
+
+        TOMsMessageLog.logMessage("In generateLinesStringFromLines", level=Qgis.Info)
+        editStartStatus = outputLayer.startEditing()
+
+        reply = QMessageBox.information(None, "Check",
+                                        "SnapNodes: Status for starting edit session on " + outputLayer.name() + " is: " + str(
+                                            editStartStatus),
+                                        QMessageBox.Ok)
+
+        if editStartStatus is False:
+            # save the active layer
+            TOMsMessageLog.logMessage("Error: snapNodesP: Not able to start transaction on " + outputLayer.name(), level=Qgis.Info)
+            reply = QMessageBox.information(None, "Error",
+                                            "SnapNodes: Not able to start transaction on " + outputLayer.name(),
+                                            QMessageBox.Ok)
+            return
+        # Snap node to nearest point
+
+        for currFeature in inputLayer.getFeatures():
+            importRestriction = restrictionToImport(currFeature)
+            importRestriction.setTraceLineLayer(snapLineLayer)
+            importRestriction.setTolerance(tolerance)
+            importRestriction.setAttributeFieldsMatchList(??)
+
+            newRestriction = importRestriction.prepareTOMsRestriction()
+
+
+            """
+            ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
+            if len(ptsList) < 2:
+                continue
+            newLine = QgsGeometry.fromPolylineXY(ptsList)
+
+            fields = outputLayer.fields()
+            new_feat = QgsFeature(fields)
+            """
+            """ somehow neeed to add attributes ... """
+            #self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
+
+            #new_feat.setGeometry(newLine)
+            #outputLayer.addFeature(new_feat)
+            outputLayer.addFeature(newRestriction)
 
         editCommitStatus = outputLayer.commitChanges()
 
