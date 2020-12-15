@@ -20,6 +20,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from qgis.core import (
+    Qgis,
     QgsMessageLog, QgsFeature, QgsGeometry,
     QgsFeatureRequest,
     QgsRectangle, QgsPointXY, QgsWkbTypes
@@ -30,6 +31,7 @@ import math
 
 from .snapTraceUtilsMixin import snapTraceUtilsMixin
 from TOMs.core.TOMsMessageLog import TOMsMessageLog
+from TOMs.generateGeometryUtils import generateGeometryUtils
 
 #class importLineString(QObject, snapTraceUtilsMixin):
 class restrictionToImport(QObject, snapTraceUtilsMixin):
@@ -41,11 +43,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
         self.currFeature = currFeature
         self.currGeometry = currFeature.geometry()
-
-        # TODO: change this around
-        if not tolerance:
-            tolerance = 0.5
-        self.tolerance = tolerance
+        self.tolerance = 0.5  # default
 
     def setTraceLineLayer(self, traceLineLayer):
         self.traceLineLayer = traceLineLayer
@@ -66,28 +64,117 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         # function to generate geometry and copy attributes for given feature
 
         # check feature type - based on "RestrictionTypeID"
-        if self.currFeature.attribute("RetrictionTypeID") < 200:
+        if self.currFeature.attribute("RestrictionTypeID") < 200:
             new_geom = self.reduceBayShape()
         else:
             new_geom = self.reduceLineShape()
 
-        newRestriction = QgsFeature(self.currFeature.fields())
-        newRestriction.setGeometry(new_geom)
-        #self.copyAttributesFromList(newRestriction, matchLists.baysMatchList)
+        if new_geom:
 
-        return newRestriction
+            newRestriction = QgsFeature(self.currFeature.fields())
+
+            currAttributes = self.currFeature.attributes()
+
+            newRestriction.setGeometry(new_geom)
+            newRestriction.setAttributes(currAttributes)
+            #self.copyAttributesFromList(newRestriction, matchLists.baysMatchList)
+
+            return newRestriction
+
+        return None
 
     def reduceLineShape(self):
         # assume that points follow line - use snap/trace
-        pass
+
+        line = generateGeometryUtils.getLineForAz(self.currFeature)
+
+        TOMsMessageLog.logMessage("In reduceLineShape:  nr of pts = " + str(len(line)), level=Qgis.Warning)
+
+        if len(line) < 2:  # need at least two points
+            return 0
+
+        # Now have a valid set of points
+
+        ptsList = []
+        parallelPtsList = []
+        nextAz = 0
+        diffEchelonAz = 0
+
+        # deal with start point
+        startPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[0], self.traceLineLayer, self.tolerance)
+
+        ptsList.append(startPointOnTraceLine.asPoint())
+
+        initialAzimuthToTraceLine = generateGeometryUtils.checkDegrees(startPointOnTraceLine.asPoint().azimuth(line[0]))
+
+        TOMsMessageLog.logMessage("In reduceLineShape: start point: {}".format(
+                                  startPointOnTraceLine.asPoint().asWkt()),
+                                  level=Qgis.Warning)
+
+        #Az = generateGeometryUtils.checkDegrees(line[0].azimuth(line[1]))
+
+        #Turn = generateGeometryUtils.turnToCL(Az, generateGeometryUtils.checkDegrees(line[1].azimuth(line[2])))
+        Turn = 0.0
+        distanceFromTraceLine = startPointOnTraceLine.distance(QgsGeometry.fromPointXY(QgsPointXY(self.currGeometry.vertexAt(0))))
+        # find distance from line to "second" point (assuming it is the turn point)
+
+        traceStartVertex = 1
+        for i in range(traceStartVertex, len(line)-2, 1):
+
+            TOMsMessageLog.logMessage("In reduceLineShape: i = " + str(i), level=Qgis.Warning)
+            Az = generateGeometryUtils.checkDegrees(line[i].azimuth(line[i + 1]))
+
+            if i == traceStartVertex:
+                prevAz = initialAzimuthToTraceLine
+                Turn = generateGeometryUtils.turnToCL(prevAz, Az)
+
+            TOMsMessageLog.logMessage("In reduceLineShape: geometry: " + str(line[i].x()) + ":" + str(line[i].y()) + " " + str(line[i+1].x()) + ":" + str(line[i+1].y()) + " " + str(Az), level=Qgis.Warning)
+            # get angle at vertex
+
+            angle = self.angleAtVertex( self.currGeometry.vertexAt(i), self.currGeometry.vertexAt(i-1),
+                                         self.currGeometry.vertexAt(i+1))
+            checkTurn = 90.0 - angle
+            if abs(checkTurn) < 1.0:
+                # this is a turn point and is not to be included in ptsList. Also consider this the end ...
+                break
+            else:
+
+                newAz, distWidth = generateGeometryUtils.calcBisector(prevAz, Az, Turn, distanceFromTraceLine)
+
+                TOMsMessageLog.logMessage("In reduceBayShape: newAz: " + str(newAz), level=Qgis.Warning)
+
+                cosa, cosb = generateGeometryUtils.cosdir_azim(newAz + diffEchelonAz)
+                ptsList.append(
+                    QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)))
+                TOMsMessageLog.logMessage("In reduceBayShape: point: {}".format(QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)).asWkt()),
+                                          level=Qgis.Warning)
+            prevAz = Az
+
+        # now add the last point
+
+        #lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[i+1], self.traceLineLayer, self.tolerance)  # TODO: need this logic
+        lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[len(line)-1], self.traceLineLayer, self.tolerance)  # issues for multi-line features
+        ptsList.append(lastPointOnTraceLine.asPoint())
+
+        ptNr = 0
+        for thisPt in ptsList:
+            TOMsMessageLog.logMessage("In reduceBayShape: ptsList {}: {}".format(ptNr, thisPt.asWkt()), level=Qgis.Warning)
+            ptNr = ptNr + 1
+
+        newLine = QgsGeometry.fromPolylineXY(ptsList)
+
+        TOMsMessageLog.logMessage("In reduceBayShape:  newLine ********: " + newLine.asWkt(), level=Qgis.Warning)
+
+        return newLine
+
 
     def reduceBayShape(self):
 
         # check start/end points are within tolerance of the tracing line (typically kerb)
 
-        # check if start/end points are the same. Likely to be a rectangle ...
+        # check if start/end points are the same. Likely to be a rectangle ...  # TODO
 
-        # check whether or not echelon ...
+        # check whether or not echelon ... (Seems to be OK without this check)
 
         # now loop through each of the vertices and process as required. New geometry points are added to ptsList
 
@@ -132,7 +219,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
         line = generateGeometryUtils.getLineForAz(self.currFeature)
 
-        TOMsMessageLog.logMessage("In reduceBayShape:  nr of pts = " + str(len(line)), level=Qgis.Info)
+        TOMsMessageLog.logMessage("In reduceBayShape:  nr of pts = " + str(len(line)), level=Qgis.Warning)
 
         if len(line) < 4:  # need at least four points
             return 0
@@ -145,18 +232,24 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         diffEchelonAz = 0
 
         # deal with start point
-        startPointOnTraceLine = findNearestPointL(line[0], self.traceLineLayer, self.tolerance)
+        startPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[0], self.traceLineLayer, self.tolerance)
         #initialAzimuthToTraceLine = line[0].azimuth(startPointOnTraceLine)
-        ptsList.append(startPointOnTraceLine)
+        ptsList.append(startPointOnTraceLine.asPoint())
+        TOMsMessageLog.logMessage("In reduceBayShape: start point: {}".format(
+                                  startPointOnTraceLine.asPoint().asWkt()),
+                                  level=Qgis.Warning)
+
+        Az = generateGeometryUtils.checkDegrees(line[0].azimuth(line[1]))
 
         Turn = generateGeometryUtils.turnToCL(Az, generateGeometryUtils.checkDegrees(line[1].azimuth(line[2])))
-        distanceFromTraceLine = startPointOnTraceLine.distance(self.currGeometry.vertexAt(1))
+        distanceFromTraceLine = startPointOnTraceLine.distance(QgsGeometry.fromPointXY(QgsPointXY(self.currGeometry.vertexAt(1))))
+        # find distance from line to "second" point (assuming it is the turn point)
 
-        for i in range(2, len(line) - 2, 1):
+        for i in range(2, len(line)-2, 1):
 
-            TOMsMessageLog.logMessage("In reduceBayShape: i = " + str(i), level=Qgis.Info)
+            TOMsMessageLog.logMessage("In reduceBayShape: i = " + str(i), level=Qgis.Warning)
             Az = generateGeometryUtils.checkDegrees(line[i].azimuth(line[i + 1]))
-            TOMsMessageLog.logMessage("In reduceBayShape: geometry: " + str(line[i].x()) + ":" + str(line[i].y()) + " " + str(line[i+1].x()) + ":" + str(line[i+1].y()) + " " + str(Az), level=Qgis.Info)
+            TOMsMessageLog.logMessage("In reduceBayShape: geometry: " + str(line[i].x()) + ":" + str(line[i].y()) + " " + str(line[i+1].x()) + ":" + str(line[i+1].y()) + " " + str(Az), level=Qgis.Warning)
             # get angle at vertex
 
             angle = self.angleAtVertex( self.currGeometry.vertexAt(i), self.currGeometry.vertexAt(i-1),
@@ -169,23 +262,29 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
                 newAz, distWidth = generateGeometryUtils.calcBisector(prevAz, Az, Turn, distanceFromTraceLine)
 
-                # TOMsMessageLog.logMessage("In generate_display_geometry: newAz: " + str(newAz), level=Qgis.Info)
+                TOMsMessageLog.logMessage("In reduceBayShape: newAz: " + str(newAz), level=Qgis.Warning)
 
                 cosa, cosb = generateGeometryUtils.cosdir_azim(newAz + diffEchelonAz)
                 ptsList.append(
                     QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)))
-
+                TOMsMessageLog.logMessage("In reduceBayShape: point: {}".format(QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)).asWkt()),
+                                          level=Qgis.Warning)
             prevAz = Az
 
         # now add the last point
 
-        lastPointOnTraceLine = findNearestPointL(line[i+1], self.traceLineLayer, self.tolerance)
+        #lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[i+1], self.traceLineLayer, self.tolerance)  # TODO: need this logic
+        lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[len(line)-1], self.traceLineLayer, self.tolerance)  # issues for multi-line features
+        ptsList.append(lastPointOnTraceLine.asPoint())
 
-        ptsList.append(lastPointOnTraceLine)
+        ptNr = 0
+        for thisPt in ptsList:
+            TOMsMessageLog.logMessage("In reduceBayShape: ptsList {}: {}".format(ptNr, thisPt.asWkt()), level=Qgis.Warning)
+            ptNr = ptNr + 1
 
         newLine = QgsGeometry.fromPolylineXY(ptsList)
 
-        # TOMsMessageLog.logMessage("In getDisplayGeometry:  newLine ********: " + newLine.asWkt(), level=Qgis.Info)
+        TOMsMessageLog.logMessage("In reduceBayShape:  newLine ********: " + newLine.asWkt(), level=Qgis.Warning)
 
         return newLine
 

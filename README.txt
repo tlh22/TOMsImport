@@ -1,6 +1,6 @@
 Plugin Builder Results
 
-Your plugin ImportWandsworth2 was created in:
+Your plugin TOMsImport was created in:
     C:/Users/IO/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins\import_wandsworth
 
 Your QGIS plugin directory is located at:
