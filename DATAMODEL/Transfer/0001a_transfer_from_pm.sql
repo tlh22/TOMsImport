@@ -32,7 +32,8 @@ ALTER TABLE local_authority."PM_Lines_Transfer"
 INSERT INTO local_authority."PM_Lines_Transfer"(
 	pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, geom)
 SELECT pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, (ST_Dump(geom)).geom AS geom
-FROM local_authority."All Confirmed Orders_lines";
+FROM local_authority."All Confirmed Orders_lines"
+WHERE date_to IS NULL;
 
 -- deal with the restriction types
 
@@ -138,3 +139,25 @@ ALTER TABLE local_authority."PM_Lines_Transfer"
 UPDATE local_authority."PM_Lines_Transfer" As p
 	SET "GeometryID"=pmid;
 
+-- Split out the lines and bays
+
+-- DROP TABLE local_authority."PM_Transfer_LineRestrictions";
+
+CREATE TABLE local_authority."PM_Transfer_LineRestrictions"
+AS
+SELECT * FROM local_authority."PM_Lines_Transfer"
+WHERE "RestrictionTypeID" > 200;
+
+ALTER TABLE local_authority."PM_Transfer_LineRestrictions"
+    OWNER to postgres;
+-- Index: sidx_PM_Transfer_LineRestrictions_geom
+
+ALTER TABLE local_authority."PM_Transfer_LineRestrictions"
+    ADD PRIMARY KEY (id);
+
+-- DROP INDEX local_authority."sidx_PM_Transfer_LineRestrictions_geom";
+
+CREATE INDEX "sidx_PM_Transfer_LineRestrictions_geom"
+    ON local_authority."PM_Transfer_LineRestrictions" USING gist
+    (geom)
+    TABLESPACE pg_default;
