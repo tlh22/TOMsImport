@@ -44,6 +44,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         self.tolerance = 0.5  # default
 
         QgsMessageLog.logMessage("In importLineString: {}".format(self.currFeature.attribute("GeometryID")), tag="TOMs panel")
+        self.currGeomShapeID = self.currFeature.attribute("GeomShapeID")
 
     def setTraceLineLayer(self, traceLineLayer):
         self.traceLineLayer = traceLineLayer
@@ -63,9 +64,10 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
     def prepareTOMsRestriction(self):
         # function to generate geometry and copy attributes for given feature
 
+        geomShapeID = 10 # line
         # check feature type - based on "RestrictionTypeID"
         if self.currFeature.attribute("RestrictionTypeID") < 200:
-            new_geom = self.reduceBayShape()
+            new_geom, geomshapeID = self.reduceBayShape()
         else:
             new_geom = self.reduceLineShape()
 
@@ -77,6 +79,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
             newRestriction.setGeometry(new_geom)
             newRestriction.setAttributes(currAttributes)
+            newRestriction.setAttribute("GeomShapeID", geomshapeID)
             #self.copyAttributesFromList(newRestriction, matchLists.baysMatchList)
 
             return newRestriction
@@ -230,7 +233,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         if len(origLine) < 4:  # need at least four points
             TOMsMessageLog.logMessage(
                 "In reduceBayShape:  Less than four points. Returning original geometry", level=Qgis.Warning)
-            return self.currGeometry
+            return self.currGeometry, self.currGeomShapeID
 
         # Now have a valid set of points
 
@@ -242,7 +245,12 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         # "normalise" bay shape
 
         lineA = self.removeKickBackVertices(origLine)
-        line = self.prepareSelfClosingBays(lineA, self.traceLineLayer)
+        line, geomShapeID = self.prepareSelfClosingBays(lineA, self.traceLineLayer)
+
+        if len(line) < 4:  # need at least four points
+            TOMsMessageLog.logMessage(
+                "In reduceBayShape 2:  Less than four points. Returning original geometry", level=Qgis.Warning)
+            return self.currGeometry, self.currGeomShapeID
 
         # deal with situations where the start point and end point are the same (or close)
         TOMsMessageLog.logMessage("In reduceLineShape:  starting nr of pts = " + str(len(line)), level=Qgis.Warning)
@@ -253,10 +261,16 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         startPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[traceStartVertex], self.traceLineLayer, self.tolerance)
 
         if not startPointOnTraceLine:
+
+            newLine = self.getVerticesWithinTolerance(line, self.traceLineLayer, self.tolerance)
+
             TOMsMessageLog.logMessage(
-                "In reduceBayShape:  Start point not within tolerance. Returning original geometry",
+                "In reduceBayShape:  Start point not within tolerance. Returning best possible geometry",
                 level=Qgis.Warning)
-            return self.currGeometry
+
+            if newLine:
+                return newLine, self.currGeomShapeID
+            return self.currGeometry, self.currGeomShapeID
 
         ptsList.append(startPointOnTraceLine.asPoint())
         TOMsMessageLog.logMessage("In reduceBayShape: start point: {}".format(
@@ -275,7 +289,6 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         traceLastVertex = initialLastVertex
 
         for i in range(traceStartVertex, initialLastVertex, 1):
-
 
             Az = generateGeometryUtils.checkDegrees(line[i].azimuth(line[i + 1]))
             angle = self.angleAtVertex( line[i], line[i-1], line[i+1])
@@ -332,7 +345,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
         TOMsMessageLog.logMessage("In reduceBayShape:  newLine ********: " + newLine.asWkt(), level=Qgis.Warning)
 
-        return newLine
+        return newLine, geomShapeID
 
     def isBetween(self, pointA, pointB, pointC):
         # https://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment
@@ -344,9 +357,9 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         lineGeom = QgsGeometry.fromPolylineXY([pointA, pointB])
         TOMsMessageLog.logMessage("In isBetween:  lineGeom ********: " + lineGeom.asWkt(), level=Qgis.Warning)
         buff = lineGeom.buffer(delta, 0, QgsGeometry.CapFlat, QgsGeometry.JoinStyleBevel, 1.0)
-        TOMsMessageLog.logMessage("In isBetween:  buff ********: " + buff.asWkt(), level=Qgis.Warning)
+        #TOMsMessageLog.logMessage("In isBetween:  buff ********: " + buff.asWkt(), level=Qgis.Warning)
 
-        if QgsGeometry.fromPointXY(pointC).within(buff):
+        if QgsGeometry.fromPointXY(pointC).intersects(buff):
             # candidate. Now check simple distances
             TOMsMessageLog.logMessage("In isBetween:  point is within buffer ...", level=Qgis.Warning)
             distAB = self.distance(pointA, pointB)
@@ -393,15 +406,56 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
                 break
             traceLastVertex = traceLastVertex - 1
 
-        TOMsMessageLog.logMessage("In removeKickBackVertices:  first: {}; last {}".format(traceStartVertex, traceLastVertex),
-                                  level=Qgis.Warning)
         # now remove vertices that are not required
         for i in range(traceStartVertex, traceLastVertex+1, 1):
             newLine.append(origLine[i])
 
+        TOMsMessageLog.logMessage("In removeKickBackVertices:  first: {}; last {}".format(traceStartVertex, traceLastVertex),
+                                  level=Qgis.Warning)
+
+        # also check situation where the last point is after end of loop, i.e., sits between points 0 and 1
+        """
+        # this approach removes any vertices that are between others - perhaps a bit violent, but ...
+        verticesToRemove = set()
+
+        for currVertex in range(0, len(origLine) - 1, 1):
+
+            i = 0
+            while True:
+                startVertex = i
+                endVertex = i + 1
+
+                if startVertex == len(origLine)-1:
+                    break
+
+                lineSegment = QgsGeometry.fromPolylineXY([origLine[startVertex], origLine[endVertex]])
+                TOMsMessageLog.logMessage(
+                    "In removeKickBackVertices: currVertex: {}; i: {}; start: {}; end: {}".format(currVertex, i, origLine[startVertex].asWkt(),
+                                                                              origLine[endVertex].asWkt()),
+                    level=Qgis.Warning)
+
+                if currVertex == startVertex or currVertex == endVertex:
+                    if lineSegment.within(QgsGeometry.fromPointXY(origLine[currVertex]).buffer(0.1, 5)):
+                        verticesToRemove.add(currVertex)
+                        TOMsMessageLog.logMessage("In removeKickBackVertices: removing vertex {}".format(currVertex), level=Qgis.Warning)
+                else:
+                    if lineSegment.intersects(QgsGeometry.fromPointXY(origLine[currVertex]).buffer(0.1, 5)):
+                        verticesToRemove.add(currVertex)
+                        TOMsMessageLog.logMessage("In removeKickBackVertices 2: removing vertex {}".format(currVertex), level=Qgis.Warning)
+
+                i = i + 1
+
+        newLine = origLine
+
+        for vertex in verticesToRemove:
+            del newLine[vertex]
+        """
+        TOMsMessageLog.logMessage("In removeKickBackVertices: len newLine {}".format(len(newLine)),
+                                  level=Qgis.Warning)
+
         return newLine
 
-    def prepareSelfClosingBays(self, line, traceLayer):
+    def prepareSelfClosingBays(self, inputLine, traceLayer):
         """ identify bays that loop
            2 ---------------------3
             |                   |
@@ -414,91 +468,267 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         tolerance = 0.5
         intesectingPts = []
         newLine = []
-        geomShapeID = 0
+        geomShapeID = 1
+
+        lineA = self.removeDanglingEndFromLoop(inputLine)
 
         # check proximity of end points
+        if not QgsGeometry.fromPointXY(lineA[0]).distance(QgsGeometry.fromPointXY(lineA[len(lineA)-1])) < tolerance:
+            return inputLine, geomShapeID
 
-        if QgsGeometry.fromPointXY(line[0]).distance(QgsGeometry.fromPointXY(line[len(line)-1])) < tolerance:
-            # we have a loop - find the intersection points on the trace line
-            # get a bounding box of the line
+        TOMsMessageLog.logMessage("In prepareSelfClosingBays: we have a loop ... ", level=Qgis.Warning)
 
-            lineGeom = QgsGeometry.fromPolylineXY(line)
-            bbox = lineGeom.boundingBox()
+        line = lineA
+        # we have a loop - find the intersection points on the trace line
+        # get a bounding box of the line
 
-            request = QgsFeatureRequest()
-            request.setFilterRect(bbox)
-            request.setFlags(QgsFeatureRequest.ExactIntersect)
+        lineGeom = QgsGeometry.fromPolylineXY(line)
+        bbox = lineGeom.boundingBox()
 
-            shortestDistance = float("inf")
-            # nearestPoint = QgsFeature()
+        request = QgsFeatureRequest()
+        request.setFilterRect(bbox)
+        request.setFlags(QgsFeatureRequest.ExactIntersect)
 
-            # Loop through all features in the layer to find the closest feature
-            for f in traceLayer.getFeatures(request):
-                TOMsMessageLog.logMessage("In prepareSelfClosingBays: {}".format(f.id()), level=Qgis.Info)
+        # Loop through all features in the layer to find the intersecting feature(s)
+        for f in traceLayer.getFeatures(request):
+            TOMsMessageLog.logMessage("In prepareSelfClosingBays: traceLayer id: {}".format(f.id()), level=Qgis.Warning)
 
-                # now check to see whether there is an intersection with this feature on the traceLayer and the lineGeom
-                intesectingPtsGeom = f.geometry().intersection(lineGeom)
+            # now check to see whether there is an intersection with this feature on the traceLayer and the lineGeom
+            intesectingPtsGeom = f.geometry().intersection(lineGeom)
 
-                if intesectingPtsGeom:
-                    # add them to a list of pts
-                    for part in intesectingPtsGeom.parts():
-                        intesectingPts.append(part)
+            if intesectingPtsGeom:
+                # add them to a list of pts
+                TOMsMessageLog.logMessage(
+                "In prepareSelfClosingBays: intersecting geom: {}".format(
+                    intesectingPtsGeom.asWkt()), level = Qgis.Warning)
+                for part in intesectingPtsGeom.parts():
+                    TOMsMessageLog.logMessage(
+                        "In prepareSelfClosingBays: intersecting part: {}".format(
+                            part.asWkt()), level=Qgis.Warning)
+                    intesectingPts.append(QgsPointXY(part))
 
-            if len(intesectingPts) == 2:
-                # if 2, generate list of points between the two and return.
-                # work out distance along line for each intersection point
+        TOMsMessageLog.logMessage("In prepareSelfClosingBays: nr of pts intersecting tracelayer: {}".format(len(intesectingPts)), level=Qgis.Warning)
 
-                startDistance = float("inf")
-                endDistance = 0.0
-                for pt in intesectingPts:
-                    vertexCoord, vertex, prevVertex, nextVertex, distSquared = \
-                        lineGeom.closestVertex(QgsPointXY(pt))
+        if len(intesectingPts) == 2:
+            # if 2, generate list of points between the two and return.
+            # work out distance along line for each intersection point
 
-                    distance = math.sqrt(distSquared)
-                    if distance < startDistance:
-                        startPt = pt
-                        startDistance = distance
+            startDistance = float("inf")
+            endDistance = 0.0
+
+            for ptXY in intesectingPts:
+                # ptXY = QgsPointXY(pt)
+                TOMsMessageLog.logMessage(
+                    "In prepareSelfClosingBays: considering intersection point: {}".format(ptXY.asWkt()),
+                    level=Qgis.Warning)
+
+                vertexCoord, vertex, prevVertex, nextVertex, distSquared = lineGeom.closestVertex(ptXY)
+
+                TOMsMessageLog.logMessage(
+                    "In prepareSelfClosingBays: considering closestVertex: {}; prevVertex: {}; nextVertex: {}".format(vertex, prevVertex, nextVertex),
+                    level=Qgis.Warning)
+
+                vertex, prevVertex, nextVertex = self.ensureVerticesNumberFromLineStart(len(line)-1, vertex, prevVertex, nextVertex)
+
+                distToVertex = lineGeom.distanceToVertex(vertex)
+                distToPt, prevVertex = self.getDistanceToPoint(ptXY, line)
+                #dist = math.sqrt(distSquared)
+
+                TOMsMessageLog.logMessage(
+                    "In prepareSelfClosingBays: considering closestVertex: {}; distToVertex: {}; distToPt: {}".format(vertex, distToVertex, distToPt),
+                    level=Qgis.Warning)
+
+                if distToPt < startDistance:
+                    startDistance = distToPt
+                    startPt = ptXY
+                    if distToVertex <= distToPt:
+                        startVertex = nextVertex
+                    else:
                         startVertex = vertex
-                        if lineGeom.distanceToVertex(startVertex) < startDistance:
-                            startVertex = nextVertex
 
-                    if distance > endDistance:
-                        endPt = pt
-                        endDistance = distance
+                    TOMsMessageLog.logMessage("In prepareSelfClosingBays: new startVertex: {}".format(startVertex), level=Qgis.Warning)
+
+                if vertex == 0:
+                    distToVertex = lineGeom.length()
+                    TOMsMessageLog.logMessage("In prepareSelfClosingBays: with vertex = 0, changing distToVertex to {}".format(distToVertex),
+                                              level=Qgis.Warning)
+                if distToPt > endDistance:
+                    endPt = ptXY
+                    endDistance = distToPt
+                    if distToPt > distToVertex:
                         endVertex = vertex
-                        if lineGeom.distanceToVertex(endVertex) > endDistance:
-                            endVertex = prevVertex
+                    else:
+                        endVertex = prevVertex
 
-                # move along line ...
-                if not QgsGeometry.fromPointXY(QgsPointXY(startPt)).equals(QgsGeometry.fromPointXY(QgsPointXY(lineGeom.vertexAt(startVertex)))):
-                    # add start pt
-                    newLine.append(QgsPointXY(startPt))
+                    TOMsMessageLog.logMessage("In prepareSelfClosingBays: new endVertex: {}".format(endVertex), level=Qgis.Warning)
 
-                for i in range(startVertex, endVertex + 1, 1):
-                    newLine.append(line[i])
+                # break
 
-                if not QgsGeometry.fromPointXY(QgsPointXY(endPt)).equals(QgsGeometry.fromPointXY(QgsPointXY(lineGeom.vertexAt(endVertex)))):
-                    # add start pt
-                    newLine.append(QgsPointXY(endPt))
+            TOMsMessageLog.logMessage(
+                "In prepareSelfClosingBays:two intersecting pts: startVertex: {}; endVertex: {}".format(startVertex, endVertex),
+                level=Qgis.Warning)
 
-                geomShapeID = 2  # half-on/half-off bay
+            # move along line ...
+            #if not QgsGeometry.fromPointXY(QgsPointXY(startPt)).equals(QgsGeometry.fromPointXY(QgsPointXY(lineGeom.vertexAt(startVertex)))):
+            #    # add start pt
 
-            elif len(intesectingPts) == 0:
-                # check whether or not shape is inside or outside the road casement.
+            newLine.append(startPt)
 
-                # move around shape and include any points that are within tolerance of the traceLayer
+            for i in range(startVertex, endVertex + 1, 1):
+                newLine.append(line[i])
 
-                newLine = line  # return the original geometry
+            #if not QgsGeometry.fromPointXY(QgsPointXY(endPt)).equals(QgsGeometry.fromPointXY(QgsPointXY(lineGeom.vertexAt(endVertex)))):
+            #    # add end pt
+            newLine.append(endPt)
 
-                #geomShapeID = 3  # on pavement bay
+            geomShapeID = 2  # half-on/half-off bay
 
-            else:
-                newLine = line  # return the original geometry
+        elif len(intesectingPts) == 0:
+            # check whether or not shape is inside or outside the road casement.
+
+            # move around shape and include any points that are within tolerance of the traceLayer
+
+            newLine = inputLine  # return the original geometry
+
+            #geomShapeID = 3  # on pavement bay
 
         else:
-            newLine = line  # return the original geometry
+            newLine = inputLine, geomShapeID  # return the original geometry
+
+        TOMsMessageLog.logMessage("In prepareSelfClosingBays: len newLine {}".format(len(newLine)), level=Qgis.Warning)
 
         return newLine, geomShapeID
 
+    def getDistanceToPoint(self, pointOnLine, line):
+        # return distance along line for point
+        # https://gis.stackexchange.com/questions/207724/how-to-get-distance-along-line-at-specific-point-in-qgis-pyqgis
 
+        # step through line segments
+        totalLength = 0.0
+        for i in range(0, len(line)-1, 1):
+            startVertex = i
+            endVertex = i + 1
 
+            lineSegment = QgsGeometry.fromPolylineXY([line[startVertex], line[endVertex]])
+            TOMsMessageLog.logMessage("In getDistanceToPoint: i: {}; start: {}; end: {}".format(i, line[startVertex].asWkt(), line[endVertex].asWkt()),
+                level=Qgis.Warning)
+            if lineSegment.intersects(QgsGeometry.fromPointXY(pointOnLine).buffer(0.1, 5)):
+                lineSegmentToPoint = QgsGeometry.fromPolylineXY([line[startVertex], pointOnLine])
+                totalLength += lineSegmentToPoint.length()
+                break
+            else:
+                totalLength += lineSegment.length()
+
+        TOMsMessageLog.logMessage("In getDistanceToPoint: totalLength: {}; vertex: {}".format(totalLength, startVertex), level=Qgis.Warning)
+
+        return totalLength, startVertex
+
+    def checkRestrictionGeometryForDuplicatePoints(self, currRestrictionGeom, tolerance):
+        # function to remove duplicate points or ones that are colinear (?) or at least ones that double back
+
+        currRestrictionPtsList = currRestrictionGeom.asPolyline()
+        nrVerticesInCurrRestriction = len(currRestrictionPtsList)
+
+        vertexA = currRestrictionPtsList[0]
+        shapeChanged = False
+        nextVertexNr = 1
+        # Now, consider each vertex of the sourceLineLayer in turn
+
+        while true:
+
+            vertexB = currRestrictionPtsList[nextVertexNr]
+
+            if self.duplicatePoint(vertexA, vertexB):
+
+                # do not want currVertex within new restriction
+                currRestrictionPtsList.remove(currRestrictionPtsList[currVertexNr])
+                nrVerticesInCurrRestriction = len(currRestrictionPtsList)
+                shapeChanged = True
+                #QgsMessageLog.logMessage("In checkLineForSelfOverlap. removing vertex" + str(currVertexNr),
+                #                         tag="TOMs panel")
+                #print ('In checkLineForSelfOverlap. removing vertex {}'.format(currVertexNr))
+                if currVertexNr > 1:
+                    currVertexNr = currVertexNr - 1
+
+                vertexA = currRestrictionPtsList[currVertexNr - 1]
+
+            else:
+
+                vertexA = vertexB
+                currVertexNr = currVertexNr + 1
+
+        if shapeChanged:
+            #QgsMessageLog.logMessage("In checkLineForSelfOverlap. changes written ... ",
+            #                         tag="TOMs panel")
+            #print ('In checkLineForSelfOverlap. changes written ...')
+            newShape = QgsGeometry.fromPolylineXY(currRestrictionPtsList)
+            return newShape
+
+        return None
+
+    def duplicatePoint(self, pointA, pointB):
+
+        duplicate = False
+
+        if pointA is None or pointB is None:
+            duplicate = False
+        elif math.sqrt((pointA.x() - pointB.x())**2 + ((pointA.y() - pointB.y())**2)) < DUPLICATE_POINT_DISTANCE:
+            duplicate = True
+
+        return duplicate
+
+    def ensureVerticesNumberFromLineStart(self, nrVertices, vertex, prevVertex, nextVertex):
+
+        # check to see whether or not the vertex is the last - and swap if required
+        if vertex == nrVertices:
+            vertex = 0
+            nextVertex = 1
+            prevVertex = -1
+
+        return vertex, prevVertex, nextVertex
+
+    def getVerticesWithinTolerance(self, restrictionline, traceLineLayer, tolerance):
+
+        ptsList = []
+        # check to see whether there were any points within tolerance
+        for i in range(0, len(restrictionline) - 1, 1):
+            pointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(
+                restrictionline[i], traceLineLayer, tolerance)
+            if pointOnTraceLine:
+                ptsList.append(pointOnTraceLine.asPoint())
+
+        if len(ptsList) >= 2:
+            return QgsGeometry.fromPolylineXY(ptsList)
+
+        return None
+
+    def removeDanglingEndFromLoop(self, inputLine, tolerance=None):
+
+        if not tolerance:
+            tolerance = 0.5
+        intesectingPts = []
+        newLine = []
+        #geomShapeID = 1
+
+        # check proximity of end points
+        line = inputLine
+
+        currVertex = 0
+        loop = False
+        for i in range(len(inputLine)-1, 0, -1):
+            TOMsMessageLog.logMessage("In removeDanglingEndFromLoop: checking for loop. considering vertex 0 and {}".format(i), level=Qgis.Warning)
+            if QgsGeometry.fromPointXY(inputLine[0]).distance(QgsGeometry.fromPointXY(inputLine[i])) < tolerance:
+                loop = True
+                break
+
+        if not loop:
+            TOMsMessageLog.logMessage("In removeDanglingEndFromLoop: no loop found", level=Qgis.Warning)
+            return inputLine
+
+        # there is a loop forming at vertex i - create a new line from here and process
+        TOMsMessageLog.logMessage("In removeDanglingEndFromLoop: preparing new geom - removing to vertex {}".format(i), level=Qgis.Warning)
+        outputLine = []
+        for v in range(0, i+1, 1):
+            outputLine.append(inputLine[v])
+
+        return outputLine

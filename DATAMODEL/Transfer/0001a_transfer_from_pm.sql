@@ -2,7 +2,7 @@
 
 -- DROP TABLE local_authority."All Confirmed Orders_lines";
 
-CREATE TABLE local_authority."PM_Lines_Transfer"
+CREATE TABLE local_authority."PM_Lines_Transfer_Current"
 (
     id SERIAL,
     geom geometry(LineString,27700),
@@ -21,15 +21,15 @@ CREATE TABLE local_authority."PM_Lines_Transfer"
 
 TABLESPACE pg_default;
 
-ALTER TABLE local_authority."PM_Lines_Transfer"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     OWNER to postgres;
 
-ALTER TABLE local_authority."PM_Lines_Transfer"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD PRIMARY KEY (id);
 
 -- use a transfer table
 
-INSERT INTO local_authority."PM_Lines_Transfer"(
+INSERT INTO local_authority."PM_Lines_Transfer_Current"(
 	pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, geom)
 SELECT pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, (ST_Dump(geom)).geom AS geom
 FROM local_authority."All Confirmed Orders_lines"
@@ -55,17 +55,17 @@ ALTER TABLE local_authority."PM_RestrictionTypes_Transfer"
 INSERT INTO local_authority."PM_RestrictionTypes_Transfer"(
 	order_type)
 SELECT DISTINCT order_type
-FROM local_authority."PM_Lines_Transfer";
+FROM local_authority."PM_Lines_Transfer_Current";
 
 UPDATE local_authority."PM_RestrictionTypes_Transfer" As p
 	SET baylinetypecode=l."Code"
 	FROM toms_lookups."BayLineTypes" l
 	WHERE p.order_type = l."Description";
 
-ALTER TABLE local_authority."PM_Lines_Transfer"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "RestrictionTypeID" integer;
 
-UPDATE local_authority."PM_Lines_Transfer" As p
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
 	SET "RestrictionTypeID"=l.baylinetypecode
 	FROM local_authority."PM_RestrictionTypes_Transfer" l
 	WHERE p.order_type = l.order_type;
@@ -90,7 +90,7 @@ ALTER TABLE local_authority."PM_TimePeriods_Transfer"
 INSERT INTO local_authority."PM_TimePeriods_Transfer"(
 	times_of_e)
 SELECT DISTINCT times_of_e
-FROM local_authority."PM_Lines_Transfer";
+FROM local_authority."PM_Lines_Transfer_Current";
 
 ALTER TABLE local_authority."PM_TimePeriods_Transfer"
     ADD COLUMN revised_times_of_e character varying(254);
@@ -124,40 +124,79 @@ UPDATE local_authority."PM_TimePeriods_Transfer" As p
 
 -- now update
 
-ALTER TABLE local_authority."PM_Lines_Transfer"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "TimePeriodID" integer;
 
-UPDATE local_authority."PM_Lines_Transfer" As p
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
 	SET "TimePeriodID"=l.TimePeriodsCode
 	FROM local_authority."PM_TimePeriods_Transfer" l
 	WHERE p.times_of_e = l.times_of_e;
 
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
+	SET "TimePeriodID" = 0
+	WHERE "times_of_e" =  '(None)';
+
 -- add "GeometryID"
-ALTER TABLE local_authority."PM_Lines_Transfer"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "GeometryID" character varying(12);
 
-UPDATE local_authority."PM_Lines_Transfer" As p
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
 	SET "GeometryID"=pmid;
+
+-- add "GeomShapeID"
+ALTER TABLE local_authority."PM_Lines_Transfer_Current"
+    ADD COLUMN "GeomShapeID" integer;
+
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
+	SET "GeomShapeID"=1
+	WHERE "RestrictionTypeID" < 200;
+
+UPDATE local_authority."PM_Lines_Transfer_Current" As p
+	SET "GeomShapeID"=10
+	WHERE "RestrictionTypeID" > 200;
 
 -- Split out the lines and bays
 
 -- DROP TABLE local_authority."PM_Transfer_LineRestrictions";
 
-CREATE TABLE local_authority."PM_Transfer_LineRestrictions"
+CREATE TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
 AS
-SELECT * FROM local_authority."PM_Lines_Transfer"
-WHERE "RestrictionTypeID" > 200;
+SELECT * FROM local_authority."PM_Lines_Transfer_Current"
+WHERE "RestrictionTypeID" < 200;
 
-ALTER TABLE local_authority."PM_Transfer_LineRestrictions"
+ALTER TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
     OWNER to postgres;
 -- Index: sidx_PM_Transfer_LineRestrictions_geom
 
-ALTER TABLE local_authority."PM_Transfer_LineRestrictions"
+ALTER TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
     ADD PRIMARY KEY (id);
 
 -- DROP INDEX local_authority."sidx_PM_Transfer_LineRestrictions_geom";
 
-CREATE INDEX "sidx_PM_Transfer_LineRestrictions_geom"
-    ON local_authority."PM_Transfer_LineRestrictions" USING gist
+CREATE INDEX "sidx_PM_Lines_Transfer_BayRestrictions_Current_geom"
+    ON local_authority."PM_Lines_Transfer_BayRestrictions_Current" USING gist
     (geom)
     TABLESPACE pg_default;
+
+
+-- DROP TABLE local_authority."PM_Transfer_LineRestrictions";
+
+CREATE TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
+AS
+SELECT * FROM local_authority."PM_Lines_Transfer_Current"
+WHERE "RestrictionTypeID" > 200;
+
+ALTER TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
+    OWNER to postgres;
+-- Index: sidx_PM_Transfer_LineRestrictions_geom
+
+ALTER TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
+    ADD PRIMARY KEY (id);
+
+-- DROP INDEX local_authority."sidx_PM_Transfer_LineRestrictions_geom";
+
+CREATE INDEX "sidx_PM_Lines_Transfer_LineRestrictions_Current_geom"
+    ON local_authority."PM_Lines_Transfer_LineRestrictions_Current" USING gist
+    (geom)
+    TABLESPACE pg_default;
+
