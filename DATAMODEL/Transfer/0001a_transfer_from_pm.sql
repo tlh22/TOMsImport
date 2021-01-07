@@ -29,11 +29,20 @@ ALTER TABLE local_authority."PM_Lines_Transfer_Current"
 
 -- use a transfer table
 
+/* Havering */
 INSERT INTO local_authority."PM_Lines_Transfer_Current"(
 	pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, geom)
 SELECT pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, (ST_Dump(geom)).geom AS geom
 FROM local_authority."All Confirmed Orders_lines"
 WHERE date_to IS NULL;
+
+/* RBKC
+INSERT INTO local_authority."PM_Lines_Transfer_Current"(
+	pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, geom)
+SELECT pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, bnumber_of, bechelonba, btime_zone, (ST_Dump(geom)).geom AS geom
+FROM local_authority."RBKC2020_ConfirmedOrders"
+WHERE date_to IS NULL;
+*/
 
 -- deal with the restriction types
 
@@ -62,6 +71,26 @@ UPDATE local_authority."PM_RestrictionTypes_Transfer" As p
 	FROM toms_lookups."BayLineTypes" l
 	WHERE p.order_type = l."Description";
 
+-- Update TypesInUse
+
+INSERT INTO toms_lookups."BayTypesInUse"(
+	"Code", "GeomShapeGroupType")
+SELECT DISTINCT baylinetypecode, 'LineString'
+FROM local_authority."PM_RestrictionTypes_Transfer"
+WHERE baylinetypecode < 200
+AND baylinetypecode NOT IN (SELECT "Code"
+	FROM toms_lookups."BayTypesInUse");
+
+INSERT INTO toms_lookups."LineTypesInUse"(
+	"Code", "GeomShapeGroupType")
+SELECT DISTINCT baylinetypecode, 'LineString'
+FROM local_authority."PM_RestrictionTypes_Transfer"
+WHERE baylinetypecode > 200
+AND baylinetypecode NOT IN (SELECT "Code"
+	FROM toms_lookups."LineTypesInUse");
+
+--
+
 ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "RestrictionTypeID" integer;
 
@@ -76,7 +105,10 @@ CREATE TABLE local_authority."PM_TimePeriods_Transfer"
 (
     id SERIAL,
     times_of_e character varying(254) COLLATE pg_catalog."default",
-    TimePeriodsCode integer
+    "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
+    "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
+    TimePeriodCode integer,
+    AdditionalConditionCode integer
 )
 
 TABLESPACE pg_default;
@@ -91,6 +123,8 @@ INSERT INTO local_authority."PM_TimePeriods_Transfer"(
 	times_of_e)
 SELECT DISTINCT times_of_e
 FROM local_authority."PM_Lines_Transfer_Current";
+
+--
 
 ALTER TABLE local_authority."PM_TimePeriods_Transfer"
     ADD COLUMN revised_times_of_e character varying(254);
@@ -118,9 +152,10 @@ SET revised_times_of_e=
 -- try match
 
 UPDATE local_authority."PM_TimePeriods_Transfer" As p
-	SET TimePeriodsCode=l."Code"
+	SET "TimePeriodCode"=l."Code"
 	FROM toms_lookups."TimePeriods" l
-	WHERE p.revised_times_of_e = l."Description";
+	WHERE p."TimePeriodDescription" = l."Description"
+    AND p."TimePeriodCode" IS NULL;
 
 -- now update
 

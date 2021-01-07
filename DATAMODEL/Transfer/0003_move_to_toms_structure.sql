@@ -29,24 +29,31 @@ AND l."RestrictionTypeID" NOT IN (
     SELECT "Code" FROM "toms_lookups"."LineTypesInUse"
 );
 
-ALTER TABLE toms."Bays" DISABLE TRIGGER update_capacity_bays;
+--ALTER TABLE toms."Bays" DISABLE TRIGGER update_capacity_bays;
+
+ALTER TABLE toms."Bays"
+    ADD COLUMN "pmid" integer;
 
 INSERT INTO toms."Bays"(
-	geom, "Notes", "RoadName", "USRN", "CPZ", "NrBays", "RestrictionID", "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID")
+	geom, "Notes", "RoadName", "USRN", "CPZ", "NrBays", "RestrictionID", "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid")
 SELECT (ST_Dump(geom)).geom AS geom, CONCAT(pmid, ' ', order_type, ' ',  street_nam, ' ', side_of_ro, ' ', schedule, ' ', mr_schedul, ' ', echelon, ' ', times_of_e) ,
-    street_nam, nsg, zoneno, no_of_spac, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID"
+    street_nam, nsg, zoneno, no_of_spac, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid"
 	FROM local_authority."PM_BayRestrictions_processed";
 
-ALTER TABLE toms."Bays" ENABLE TRIGGER update_capacity_bays;
+--ALTER TABLE toms."Bays" ENABLE TRIGGER update_capacity_bays;
 
-ALTER TABLE toms."Lines" DISABLE TRIGGER update_capacity_lines;
+--ALTER TABLE toms."Lines" DISABLE TRIGGER update_capacity_lines;
+
+ALTER TABLE toms."Lines"
+    ADD COLUMN "pmid" integer;
 
 INSERT INTO toms."Lines"(
-	geom, "Notes", "RoadName", "USRN", "CPZ", "RestrictionID", "GeometryID", "RestrictionTypeID", "NoWaitingTimeID",  "GeomShapeID")
+	geom, "Notes", "RoadName", "USRN", "CPZ", "RestrictionID", "GeometryID", "RestrictionTypeID", "NoWaitingTimeID",  "GeomShapeID", "pmid")
 SELECT (ST_Dump(geom)).geom AS geom, CONCAT(pmid, ' ', order_type, ' ',  street_nam, ' ', side_of_ro, ' ', schedule, ' ', mr_schedul, ' ', echelon, ' ', times_of_e) ,
-    street_nam, nsg, zoneno, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID"
+    street_nam, nsg, zoneno, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid"
 	FROM local_authority."PM_LineRestrictions_processed";
 
-ALTER TABLE toms."Lines" ENABLE TRIGGER update_capacity_lines;
+--ALTER TABLE toms."Lines" ENABLE TRIGGER update_capacity_lines;
 
 -- Need to add Open date ...
+
