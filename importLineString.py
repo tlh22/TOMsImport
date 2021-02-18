@@ -302,7 +302,7 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
                 TOMsMessageLog.logMessage("In reduceBayShape: turn: {}; dist: {}".format(Turn, distanceFromTraceLine),
                                           level=Qgis.Info)
 
-            elif abs(checkTurn) < 1.0:   # TODO: This could be a line at a right angle corner. Need to check ??
+            elif abs(checkTurn) < 5.0:   # TODO: This could be a line at a right angle corner. Need to check ??
                 # this is a turn point and is not to be included in ptsList. Also consider this the end ...
                 TOMsMessageLog.logMessage("In reduceBayShape: turn point. Exiting reduce loop at {}".format(i) , level=Qgis.Info)
                 traceLastVertex = i + 1  # ignore current vertex and use next vertex as last
@@ -347,24 +347,27 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
 
         return newLine, geomShapeID
 
-    def isBetween(self, pointA, pointB, pointC):
+    def isBetween(self, pointA, pointB, pointC, delta=None):
         # https://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment
         # determines whether C lies on line A-B
 
-        delta = 0.25
+        if delta is None:
+            delta = 0.25
 
         # check to see whether or not point C lies within a buffer for A-B
-        lineGeom = QgsGeometry.fromPolylineXY([pointA, pointB])
-        TOMsMessageLog.logMessage("In isBetween:  lineGeom ********: " + lineGeom.asWkt(), level=Qgis.Info)
-        buff = lineGeom.buffer(delta, 0, QgsGeometry.CapFlat, QgsGeometry.JoinStyleBevel, 1.0)
+        lineGeom_AB = QgsGeometry.fromPolylineXY([pointA, pointB])
+        TOMsMessageLog.logMessage("In isBetween:  lineGeom ********: " + lineGeom_AB.asWkt(), level=Qgis.Info)
+        buff = lineGeom_AB  .buffer(delta, 0, QgsGeometry.CapFlat, QgsGeometry.JoinStyleBevel, 1.0)
         #TOMsMessageLog.logMessage("In isBetween:  buff ********: " + buff.asWkt(), level=Qgis.Info)
 
         if QgsGeometry.fromPointXY(pointC).intersects(buff):
             # candidate. Now check simple distances
             TOMsMessageLog.logMessage("In isBetween:  point is within buffer ...", level=Qgis.Info)
-            distAB = self.distance(pointA, pointB)
-            distAC = self.distance(pointA, pointC)
-            distBC = self.distance(pointB, pointC)
+            lineGeom_AC = QgsGeometry.fromPolylineXY([pointA, pointC])
+            lineGeom_BC = QgsGeometry.fromPolylineXY([pointB, pointC])
+            distAB = lineGeom_AB.length()
+            distAC = lineGeom_AC.length()
+            distBC = lineGeom_BC.length()
 
             TOMsMessageLog.logMessage("In isBetween:  distances: {}; {}; {}".format(distAB, distAC, distBC), level=Qgis.Info)
 
