@@ -130,7 +130,7 @@ class snapTraceUtilsMixin():
     def angleAtVertex(self, pt, ptBefore, ptAfter):
         angle = abs(self.azimuth(pt, ptAfter) - self.azimuth(pt, ptBefore))
 
-        if angle > 180:
-            angle = 360- angle
+        if angle > 180.0:
+            angle = 360.0 - angle
 
         return angle

@@ -16,7 +16,7 @@ import unittest
 
 from PyQt5.QtGui import QDialogButtonBox, QDialog
 
-from import_wandsworth_dialog import ImportWandsworth2Dialog
+from ui.import_wandsworth_dialog import ImportWandsworth2Dialog
 
 from utilities import get_qgis_app
 QGIS_APP = get_qgis_app()
