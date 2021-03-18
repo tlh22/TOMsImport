@@ -5,25 +5,12 @@ Now start to deal with structure - and then snap vertices ...
 
 ***/
 
--- remove any details that are not required.
-DELETE FROM local_authority."DXF_Merged_single"
-WHERE "RestrictionTypeID" IS NULL;
-
--- add fields
-
-ALTER TABLE local_authority."DXF_Merged_single"
-    ADD COLUMN "GeomShapeID" integer;
-ALTER TABLE local_authority."DXF_Merged_single"
-    ADD COLUMN "AzimuthToRoadCentreLine" double precision;
-ALTER TABLE local_authority."DXF_Merged_single"
-    ADD COLUMN "RestrictionID" character varying(254);
-ALTER TABLE local_authority."DXF_Merged_single"
-    ADD COLUMN "CPZ" character varying(40);
 
 -- Bays
 UPDATE local_authority."DXF_Merged_single"
 SET "GeomShapeID" = 1
-WHERE "RestrictionTypeID" < 200;
+WHERE "RestrictionTypeID" < 200
+AND "GeomShapeID" IS NULL;
 
 -- Check for off-carriageway bays
 UPDATE local_authority."DXF_Merged_single" AS r
@@ -35,12 +22,8 @@ AND "GeomShapeID" = 1;
 -- Lines
 UPDATE local_authority."DXF_Merged_single"
 SET "GeomShapeID" = 10
-WHERE "RestrictionTypeID" > 200;
-
--- RestrictionID
-UPDATE local_authority."DXF_Merged_single"
-SET "RestrictionID" = uuid_generate_v4()
-WHERE "RestrictionID" IS NULL;
+WHERE "RestrictionTypeID" > 200
+AND "GeomShapeID" IS NULL;
 
 -- CPZ
 UPDATE local_authority."DXF_Merged_single" AS r
