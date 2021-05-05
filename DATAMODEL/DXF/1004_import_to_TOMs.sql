@@ -2,6 +2,11 @@
 Now import into structure
 ***/
 
+-- Split into different tables
+
+
+
+
 INSERT INTO toms."Bays"(
 	"RestrictionID", geom, "RestrictionTypeID", "GeomShapeID", "AzimuthToRoadCentreLine", "TimePeriodID")
 SELECT uuid_generate_v4(), geom, "RestrictionTypeID", "GeomShapeID", "AzimuthToRoadCentreLine", 1

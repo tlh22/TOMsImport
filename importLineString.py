@@ -497,18 +497,27 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
             TOMsMessageLog.logMessage("In prepareSelfClosingBays: traceLayer id: {}".format(f.id()), level=Qgis.Info)
 
             # now check to see whether there is an intersection with this feature on the traceLayer and the lineGeom
-            intesectingPtsGeom = f.geometry().intersection(lineGeom)
+            intersectingPtsGeom = f.geometry().intersection(lineGeom)
 
-            if intesectingPtsGeom:
-                # add them to a list of pts
+            if intersectingPtsGeom:
                 TOMsMessageLog.logMessage(
                 "In prepareSelfClosingBays: intersecting geom: {}".format(
-                    intesectingPtsGeom.asWkt()), level = Qgis.Info)
-                for part in intesectingPtsGeom.parts():
+                    intersectingPtsGeom.asWkt()), level = Qgis.Info)
+                # add them to a list of pts
+
+                if intersectingPtsGeom.type() == QgsWkbTypes.PointGeometry:
+                    for part in intersectingPtsGeom.parts():
+                        intesectingPts.append(QgsPointXY(part))
+
+                elif intersectingPtsGeom.type() == QgsWkbTypes.LineGeometry:
+
+                    for part in intersectingPtsGeom.parts():
+                        for i in range(len(part) - 1):
+                            intesectingPts.append(QgsPointXY(part[i]))
+
+                else:
                     TOMsMessageLog.logMessage(
-                        "In prepareSelfClosingBays: intersecting part: {}".format(
-                            part.asWkt()), level=Qgis.Info)
-                    intesectingPts.append(QgsPointXY(part))
+                        "In prepareSelfClosingBays: No type found for intersecting geom ... ", level=Qgis.Warning)
 
         TOMsMessageLog.logMessage("In prepareSelfClosingBays: nr of pts intersecting tracelayer: {}".format(len(intesectingPts)), level=Qgis.Info)
 
