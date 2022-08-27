@@ -1,22 +1,28 @@
 -- Table: local_authority.All Confirmed Orders_lines
 
--- DROP TABLE local_authority."All Confirmed Orders_lines";
+-- DROP TABLE local_authority."PM_Lines_Transfer_Current";
 
 CREATE TABLE local_authority."PM_Lines_Transfer_Current"
 (
     id SERIAL,
     geom geometry(LineString,27700),
-    pmid bigint,
-    order_type character varying(50) COLLATE pg_catalog."default",
-    street_nam character varying(100) COLLATE pg_catalog."default",
-    side_of_ro character varying(60) COLLATE pg_catalog."default",
-    schedule character varying(15) COLLATE pg_catalog."default",
-    mr_schedul character varying(15) COLLATE pg_catalog."default",
-    nsg character varying(10) COLLATE pg_catalog."default",
-    zoneno bigint,
-    no_of_spac bigint,
-    echelon character varying(1) COLLATE pg_catalog."default",
-    times_of_e character varying(254) COLLATE pg_catalog."default"
+
+	item_ref double precision,
+    "Order_type" character varying(50) COLLATE pg_catalog."default",
+    "Street_nam" character varying(100) COLLATE pg_catalog."default",
+    "Length" double precision,
+    restrictio character varying(254) COLLATE pg_catalog."default",
+    times_of_e character varying(254) COLLATE pg_catalog."default",
+    "Ord_Title" character varying(254) COLLATE pg_catalog."default",
+    "oCashless_" character varying(100) COLLATE pg_catalog."default",
+    "oCar_Club_" character varying(32) COLLATE pg_catalog."default",
+    "bOrganisat" character varying(100) COLLATE pg_catalog."default",
+    "bTariff" character varying(25) COLLATE pg_catalog."default",
+    "bPandDMach" double precision,
+    "bEchelon" character varying(5) COLLATE pg_catalog."default",
+    "bNoBays" double precision,
+    "bLocation" character varying(6) COLLATE pg_catalog."default",
+    "oCar_club1" character varying(15) COLLATE pg_catalog."default"
 )
 
 TABLESPACE pg_default;
@@ -38,10 +44,10 @@ WHERE date_to IS NULL;
 
 /* RBKC
 INSERT INTO local_authority."PM_Lines_Transfer_Current"(
-	pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, no_of_spac, echelon, times_of_e, geom)
-SELECT pmid, order_type, street_nam, side_of_ro, schedule, mr_schedul, nsg, zoneno, bnumber_of, bechelonba, btime_zone, (ST_Dump(geom)).geom AS geom
-FROM local_authority."RBKC2020_ConfirmedOrders"
-WHERE date_to IS NULL;
+	item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_", "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", geom)
+SELECT item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_", "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", (ST_Dump(geom)).geom AS geom
+FROM local_authority."RBKC_ConfirmedOrdersLine"
+WHERE "Date_to" IS NULL;
 */
 
 -- deal with the restriction types
@@ -49,7 +55,7 @@ WHERE date_to IS NULL;
 CREATE TABLE local_authority."PM_RestrictionTypes_Transfer"
 (
     id SERIAL,
-    order_type character varying(50) COLLATE pg_catalog."default",
+    "Order_type" character varying(50) COLLATE pg_catalog."default",
     BayLineTypeCode integer
 )
 
@@ -62,14 +68,14 @@ ALTER TABLE local_authority."PM_RestrictionTypes_Transfer"
     ADD PRIMARY KEY (id);
 
 INSERT INTO local_authority."PM_RestrictionTypes_Transfer"(
-	order_type)
-SELECT DISTINCT order_type
+	"Order_type")
+SELECT DISTINCT "Order_type"
 FROM local_authority."PM_Lines_Transfer_Current";
 
 UPDATE local_authority."PM_RestrictionTypes_Transfer" As p
 	SET baylinetypecode=l."Code"
 	FROM toms_lookups."BayLineTypes" l
-	WHERE p.order_type = l."Description";
+	WHERE p."Order_type" = l."Description";
 
 -- Update TypesInUse
 
@@ -97,7 +103,7 @@ ALTER TABLE local_authority."PM_Lines_Transfer_Current"
 UPDATE local_authority."PM_Lines_Transfer_Current" As p
 	SET "RestrictionTypeID"=l.baylinetypecode
 	FROM local_authority."PM_RestrictionTypes_Transfer" l
-	WHERE p.order_type = l.order_type;
+	WHERE p."Order_type" = l."Order_type";
 
 -- deal with the time periods
 
@@ -107,8 +113,8 @@ CREATE TABLE local_authority."PM_TimePeriods_Transfer"
     times_of_e character varying(254) COLLATE pg_catalog."default",
     "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
     "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
-    TimePeriodCode integer,
-    AdditionalConditionCode integer
+    "TimePeriodCode" integer,
+    "AdditionalConditionCode" integer
 )
 
 TABLESPACE pg_default;
@@ -149,12 +155,116 @@ SET revised_times_of_e=
 	WHERE position(' and' IN revised_times_of_e) < length (revised_times_of_e)
 	AND position(' and' IN revised_times_of_e) > 0;
 
+UPDATE local_authority."PM_TimePeriods_Transfer" As p
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '.30.00', '.30', 'g');
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p
+SET revised_times_of_e = regexp_replace(revised_times_of_e, 'p.00m', 'pm', 'g');
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p
+SET revised_times_of_e = regexp_replace(revised_times_of_e, 'None.00', 'None', 'g');
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+ SET revised_times_of_e = regexp_replace(revised_times_of_e, '1am', '1.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+ SET revised_times_of_e = regexp_replace(revised_times_of_e, '2am', '2.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '3am', '3.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '4am', '4.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '5am', '5.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '6am', '6.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '7am', '7.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '8am', '8.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '9am', '9.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '10am', '10.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '11am', '11.00am', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '1pm', '1.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '2pm', '2.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '3pm', '3.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '4pm', '4.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '5pm', '5.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '6pm', '6.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '7pm', '7.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '8pm', '8.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '9pm', '9.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '10pm', '10.00pm', 'g')
+;
+
+UPDATE local_authority."PM_TimePeriods_Transfer" As p 
+SET revised_times_of_e = regexp_replace(revised_times_of_e, '11pm', '11.00pm', 'g')
+;
+
+
+/***
+SELECT ConCAT('INSERT INTO "toms_lookups"."TimePeriods" ("Description", "LabelText") VALUES (''', revised_times_of_e, ''', ''', revised_times_of_e,''');')
+FROM local_authority."PM_TimePeriods_Transfer" As p
+WHERE timeperiodcode is null
+***/
+
 -- try match
 
 UPDATE local_authority."PM_TimePeriods_Transfer" As p
 	SET "TimePeriodCode"=l."Code"
 	FROM toms_lookups."TimePeriods" l
-	WHERE p."TimePeriodDescription" = l."Description"
+	WHERE p.revised_times_of_e = l."Description"
     AND p."TimePeriodCode" IS NULL;
 
 -- now update
@@ -163,7 +273,7 @@ ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "TimePeriodID" integer;
 
 UPDATE local_authority."PM_Lines_Transfer_Current" As p
-	SET "TimePeriodID"=l.TimePeriodsCode
+	SET "TimePeriodID"=l."TimePeriodCode"
 	FROM local_authority."PM_TimePeriods_Transfer" l
 	WHERE p.times_of_e = l.times_of_e;
 
@@ -176,7 +286,7 @@ ALTER TABLE local_authority."PM_Lines_Transfer_Current"
     ADD COLUMN "GeometryID" character varying(12);
 
 UPDATE local_authority."PM_Lines_Transfer_Current" As p
-	SET "GeometryID"=pmid;
+	SET "GeometryID"=item_ref;
 
 -- add "GeomShapeID"
 ALTER TABLE local_authority."PM_Lines_Transfer_Current"
