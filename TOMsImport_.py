@@ -45,7 +45,8 @@ from TOMs.core.TOMsMessageLog import TOMsMessageLog
 from TOMsImport.ui.import_wandsworth_dialog import ImportWandsworth2Dialog
 import os.path
 
-from .importPolygon import importPolygon
+from TOMsImport.importPolygon import importPolygon
+from TOMsImport.importMatchLists import matchLists
 from TOMsImport.importLineString import restrictionToImport
 
 
@@ -323,13 +324,17 @@ class TOMsImport:
         # Snap node to nearest point
 
         for currFeature in inputLayer.getFeatures():
+            """
             importRestriction = restrictionToImport(currFeature)
             importRestriction.setTraceLineLayer(snapLineLayer)
             importRestriction.setTolerance(tolerance)
             #importRestriction.setAttributeFieldsMatchList(??)
 
             newRestriction = importRestriction.prepareTOMsRestriction()
-
+            
+            if newRestriction:
+                outputLayer.addFeature(newRestriction)
+                
             """
             ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
             if len(ptsList) < 2:
@@ -338,17 +343,14 @@ class TOMsImport:
 
             fields = outputLayer.fields()
             new_feat = QgsFeature(fields)
-            """
+
             """ somehow neeed to add attributes ... """
 
-            #self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
+            self.copyAttributesFromList(new_feat, outputLayer, currFeature, inputLayer, matchLists.baysMatchList)
 
-            #new_feat.setGeometry(newLine)
-            #outputLayer.addFeature(new_feat)
-            if newRestriction:
-                outputLayer.addFeature(newRestriction)
+            new_feat.setGeometry(newLine)
+            outputLayer.addFeature(new_feat)
 
-        pass
         #editCommitStatus = outputLayer.commitChanges()
 
         """reply = QMessageBox.information(None, "Check",
@@ -379,7 +381,7 @@ class TOMsImport:
             """ Check to see if the field is to be copied """
             for (oldFieldName, newFieldName) in matchList:
                 if oldField.name() == oldFieldName:
-                    # TOMsMessageLog.logMessage("In copyBayAttributes. setting field: " + newField.name(), level=Qgis.Info)
+                    TOMsMessageLog.logMessage("In copyBayAttributes. setting field: {}; {}".format(oldField.name(), newFieldName), level=Qgis.Warning)
                     newFeature.setAttribute(newFieldName, oldFeature.attribute(oldFieldName))
 
     def prepareNewLayer(self, currLayer, newLayerName):
