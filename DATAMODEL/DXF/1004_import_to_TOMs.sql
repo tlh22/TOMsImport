@@ -23,3 +23,10 @@ SELECT uuid_generate_v4(), geom, "RestrictionTypeID", "GeomShapeID", "AzimuthToR
 	--AND "CPZ" IN ('7S', '7 Sisters South 2')
 	;
 
+-- Crossovers
+
+INSERT INTO highway_assets."CrossingPoints"(
+	"RestrictionID", geom, "CrossingPointTypeID", "GeomShapeID", "AzimuthToRoadCentreLine")
+SELECT uuid_generate_v4(), geom, 3, 35, "AzimuthToRoadCentreLine"
+	FROM local_authority."DXF_DroppedKerbs_single2"
+	;

@@ -40,3 +40,16 @@ FROM (SELECT DISTINCT ON (s."id") s."id" AS id, ST_ClosestPoint(cl.geom, ST_Line
       FROM "highways_network"."roadlink" cl, local_authority."DXF_Merged_single" s
       ORDER BY s."id", length) AS closest
 WHERE c."id" = closest.id;   --- *** TODO: Check that this is best option for Az
+
+-- Crossovers
+UPDATE local_authority."DXF_DroppedKerbs_single2" AS r
+SET "GeomShapeID" = 35
+WHERE "GeomShapeID" IS NULL;
+
+UPDATE local_authority."DXF_DroppedKerbs_single2" AS c
+SET "AzimuthToRoadCentreLine" = ST_Azimuth(ST_LineInterpolatePoint(c.geom, 0.5), closest.geom)
+FROM (SELECT DISTINCT ON (s."id") s."id" AS id, ST_ClosestPoint(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS geom,
+        ST_Distance(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS length
+      FROM "highways_network"."roadlink" cl, local_authority."DXF_DroppedKerbs_single2" s
+      ORDER BY s."id", length) AS closest
+WHERE c."id" = closest.id;   --- *** TODO: Check that this is best option for Az
