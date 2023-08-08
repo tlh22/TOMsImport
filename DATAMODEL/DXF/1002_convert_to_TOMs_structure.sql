@@ -12,18 +12,18 @@ SET "GeomShapeID" = 1
 WHERE "RestrictionTypeID" < 200
 AND "GeomShapeID" IS NULL;
 
+-- Lines
+UPDATE local_authority."DXF_Merged_single"
+SET "GeomShapeID" = 10
+WHERE "RestrictionTypeID" > 200
+AND "GeomShapeID" IS NULL;
+
 -- Check for off-carriageway bays
 UPDATE local_authority."DXF_Merged_single" AS r
 SET "GeomShapeID" = 3
 FROM topography."RC_Polygons" p
 WHERE NOT ST_Within(r.geom, p.geom)
 AND "GeomShapeID" = 1;
-
--- Lines
-UPDATE local_authority."DXF_Merged_single"
-SET "GeomShapeID" = 10
-WHERE "RestrictionTypeID" > 200
-AND "GeomShapeID" IS NULL;
 
 -- CPZ
 UPDATE local_authority."DXF_Merged_single" AS r
