@@ -1,3 +1,16 @@
+-- echelon bays
+
+UPDATE local_authority."Bays_Transfer"
+SET "GeomShapeID" = 5
+WHERE "GeomShapeID" < 10
+AND "bEchelon" = 'Y';
+
+UPDATE local_authority."Bays_Transfer"
+SET "GeomShapeID" = 25
+WHERE "GeomShapeID" < 20
+AND "bEchelon" = 'Y';
+
+
 -- take the tables with the processed records and move them to TOMs structure
 INSERT INTO "toms_lookups"."TimePeriodsInUse" ("Code")
 SELECT u."TimePeriodID"
@@ -32,28 +45,37 @@ AND l."RestrictionTypeID" NOT IN (
 --ALTER TABLE toms."Bays" DISABLE TRIGGER update_capacity_bays;
 
 ALTER TABLE toms."Bays"
-    ADD COLUMN "pmid" integer;
-
+    ADD COLUMN "item_ref" integer;
+ALTER TABLE toms."Bays"
+    ADD COLUMN "RBKC_NrBays" integer;
+	
 INSERT INTO toms."Bays"(
-	geom, "Notes", "RoadName", "USRN", "CPZ", "NrBays", "RestrictionID", "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid")
-SELECT (ST_Dump(geom)).geom AS geom, CONCAT(pmid, ' ', order_type, ' ',  street_nam, ' ', side_of_ro, ' ', schedule, ' ', mr_schedul, ' ', echelon, ' ', times_of_e) ,
-    street_nam, nsg, zoneno, no_of_spac, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid"
-	FROM local_authority."PM_BayRestrictions_processed";
+	geom, "RoadName", "RBKC_NrBays", "RestrictionID", "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "item_ref")
+SELECT (ST_Dump(geom)).geom AS geom, 
+    "Street_nam", "bNoBays", uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "item_ref"
+	FROM local_authority."Bays_Transfer";
 
 --ALTER TABLE toms."Bays" ENABLE TRIGGER update_capacity_bays;
 
 --ALTER TABLE toms."Lines" DISABLE TRIGGER update_capacity_lines;
 
 ALTER TABLE toms."Lines"
-    ADD COLUMN "pmid" integer;
+    ADD COLUMN "item_ref" integer;
 
 INSERT INTO toms."Lines"(
-	geom, "Notes", "RoadName", "USRN", "CPZ", "RestrictionID", "GeometryID", "RestrictionTypeID", "NoWaitingTimeID",  "GeomShapeID", "pmid")
-SELECT (ST_Dump(geom)).geom AS geom, CONCAT(pmid, ' ', order_type, ' ',  street_nam, ' ', side_of_ro, ' ', schedule, ' ', mr_schedul, ' ', echelon, ' ', times_of_e) ,
-    street_nam, nsg, zoneno, uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "pmid"
-	FROM local_authority."PM_LineRestrictions_processed";
+	geom, "RoadName", "RestrictionID", "GeometryID", "RestrictionTypeID", "NoWaitingTimeID",  "GeomShapeID", "item_ref")
+SELECT (ST_Dump(geom)).geom AS geom, 
+    "Street_nam", uuid_generate_v4(), "GeometryID", "RestrictionTypeID", "TimePeriodID",  "GeomShapeID", "item_ref"
+	FROM local_authority."Lines_Transfer";
+
 
 --ALTER TABLE toms."Lines" ENABLE TRIGGER update_capacity_lines;
 
 -- Need to add Open date ...
 
+-- echelon bays
+
+UPDATE toms."Bays" AS r
+SET "GeomShapeID" = t."GeomShapeID"
+FROM local_authority."Bays_Transfer" t
+WHERE t."item_ref" = r."item_ref";
