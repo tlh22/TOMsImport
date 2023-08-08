@@ -46,6 +46,18 @@ CREATE TABLE local_authority."Transition_RestrictionPolygons"
 )
 ;
 
+DROP TABLE IF EXISTS local_authority."Transition_CrossingPoints" CASCADE;
+
+CREATE TABLE local_authority."Transition_CrossingPoints"
+(
+    id SERIAL,
+    "RestrictionTypeID" integer,
+    "GeomShapeID" integer,
+    "AzimuthToRoadCentreLine" double precision,
+    geom geometry(Polygon,27700),
+    CONSTRAINT "Transition_Crossovers_pkey" PRIMARY KEY (id)
+)
+;
 
 -- import
 
@@ -70,3 +82,11 @@ SELECT ST_MakePolygon(geom), "RestrictionTypeID", 50
 	FROM local_authority."DXF_Merged_single"
 	WHERE "RestrictionTypeID" < 100
 	;
+
+/*** ??
+INSERT INTO local_authority."Transition_CrossingPoints"(
+	geom, "RestrictionTypeID", "GeomShapeID")
+SELECT geom, "RestrictionTypeID", "GeomShapeID", "AzimuthToRoadCentreLine", 35
+	FROM local_authority."DXF_??"
+	;
+***/
