@@ -34,6 +34,11 @@ class matchLists(object):
         ("GeomShapeID", "GeomShapeID"),
         ("AzimuthToRoadCentreLine", "AzimuthToRoadCentreLine"),
         ("TimePeriodID", "TimePeriodID"),
+        ("MaxStayID", "MaxStayID"),
+        ("NoReturnID", "NoReturnID"),
+        ("MatchDayTimePeriodID", "MatchDayTimePeriodID"),
+        ("NoWaitingTimeID", "NoWaitingTimeID"),
+        ("NoLoadingTimeID", "NoLoadingTimeID"),
     ]
 
 
