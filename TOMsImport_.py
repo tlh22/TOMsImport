@@ -336,7 +336,20 @@ class TOMsImport:
                 outputLayer.addFeature(newRestriction)
                 
             """
-            ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
+            if inputLayer.wkbType() == QGis.WKBLineString:
+
+                continue
+
+            elif inputLayer.wkbType() == QGis.WKBPolygon:
+
+                ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
+
+            else:
+                reply = QMessageBox.information(None, "Check",
+                                                "Unknown geometry type for " + inputLayer.name(),
+                                                QMessageBox.Ok)
+                return
+
             if len(ptsList) < 2:
                 continue
             newLine = QgsGeometry.fromPolylineXY(ptsList)
