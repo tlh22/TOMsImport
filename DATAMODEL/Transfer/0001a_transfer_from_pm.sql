@@ -44,10 +44,10 @@ WHERE date_to IS NULL;
 
 /* RBKC
 INSERT INTO local_authority."PM_Lines_Transfer_Current"(
-	item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_", "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", geom)
-SELECT item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_", "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", (ST_Dump(geom)).geom AS geom
-FROM local_authority."RBKC_ConfirmedOrdersLine"
-WHERE "Date_to" IS NULL;
+	item_ref, "Order_type", "Street_nam", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_", "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", geom)
+SELECT item_ref, order_type, street_nam, restrictio, times_of_e, order_titl, cashless_p, car_club_o, organisati, tariff, pandd_mach, echelon_ba, number_of_, location_c, car_club_v, (ST_Dump(geom)).geom AS geom
+FROM local_authority."Parking_Restrictions"
+WHERE date_to IS NULL;
 */
 
 -- deal with the restriction types
@@ -302,21 +302,20 @@ UPDATE local_authority."PM_Lines_Transfer_Current" As p
 
 -- Split out the lines and bays
 
--- DROP TABLE local_authority."PM_Transfer_LineRestrictions";
+DROP TABLE IF EXISTS local_authority."PM_Lines_Transfer_BayRestrictions_Current";
 
 CREATE TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
 AS
-SELECT * FROM local_authority."PM_Lines_Transfer_Current"
+SELECT * FROM local_authority."PM_Lines_Transfer_Current_101"
 WHERE "RestrictionTypeID" < 200;
 
 ALTER TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
     OWNER to postgres;
--- Index: sidx_PM_Transfer_LineRestrictions_geom
 
 ALTER TABLE local_authority."PM_Lines_Transfer_BayRestrictions_Current"
     ADD PRIMARY KEY (id);
 
--- DROP INDEX local_authority."sidx_PM_Transfer_LineRestrictions_geom";
+DROP INDEX IF EXISTS local_authority."sidx_PM_Lines_Transfer_BayRestrictions_Current_geom";
 
 CREATE INDEX "sidx_PM_Lines_Transfer_BayRestrictions_Current_geom"
     ON local_authority."PM_Lines_Transfer_BayRestrictions_Current" USING gist
@@ -324,24 +323,153 @@ CREATE INDEX "sidx_PM_Lines_Transfer_BayRestrictions_Current_geom"
     TABLESPACE pg_default;
 
 
--- DROP TABLE local_authority."PM_Transfer_LineRestrictions";
+DROP TABLE IF EXISTS local_authority."PM_Lines_Transfer_LineRestrictions_Current";
 
 CREATE TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
 AS
-SELECT * FROM local_authority."PM_Lines_Transfer_Current"
+SELECT * FROM local_authority."PM_Lines_Transfer_Current_101"
 WHERE "RestrictionTypeID" > 200;
 
 ALTER TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
     OWNER to postgres;
--- Index: sidx_PM_Transfer_LineRestrictions_geom
 
 ALTER TABLE local_authority."PM_Lines_Transfer_LineRestrictions_Current"
     ADD PRIMARY KEY (id);
 
--- DROP INDEX local_authority."sidx_PM_Transfer_LineRestrictions_geom";
+DROP INDEX IF EXISTS local_authority."sidx_PM_Lines_Transfer_LineRestrictions_Current_geom";
 
 CREATE INDEX "sidx_PM_Lines_Transfer_LineRestrictions_Current_geom"
     ON local_authority."PM_Lines_Transfer_LineRestrictions_Current" USING gist
     (geom)
     TABLESPACE pg_default;
 
+
+/****
+
+-- if considering only the new restrictions
+
+DROP TABLE IF EXISTS local_authority."Bays_Transfer" CASCADE;
+
+CREATE TABLE local_authority."Bays_Transfer"
+AS
+SELECT id, item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_",
+       "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", "RestrictionTypeID", "TimePeriodID", "GeometryID", "GeomShapeID",
+       (ST_Dump(geom)).geom AS geom
+FROM local_authority."PM_Lines_Transfer_Current_101"
+WHERE "RestrictionTypeID" < 200
+AND item_ref NOT IN
+--(SELECT DISTINCT l.item_ref
+--FROM mhtc_operations."Supply_2022" s, mhtc_operations."RBKC_item_ref_links_2022" l
+--WHERE s."GeometryID" = l."GeometryID");
+(SELECT DISTINCT item_ref
+FROM local_authority."2022_PM_Lines_Transfer_Current");
+
+DROP TABLE IF EXISTS local_authority."Lines_Transfer" CASCADE;
+
+CREATE TABLE local_authority."Lines_Transfer"
+AS
+SELECT id, item_ref, "Order_type", "Street_nam", "Length", restrictio, times_of_e, "Ord_Title", "oCashless_", "oCar_Club_",
+       "bOrganisat", "bTariff", "bPandDMach", "bEchelon", "bNoBays", "bLocation", "oCar_club1", "RestrictionTypeID", "TimePeriodID", "GeometryID", "GeomShapeID",
+       (ST_Dump(geom)).geom AS geom
+FROM local_authority."PM_Lines_Transfer_Current_101"
+WHERE "RestrictionTypeID" > 200
+AND item_ref NOT IN
+--(SELECT DISTINCT l.item_ref
+--FROM mhtc_operations."Supply_2022" s, mhtc_operations."RBKC_item_ref_links_2022" l
+--WHERE s."GeometryID" = l."GeometryID");
+(SELECT DISTINCT item_ref
+FROM local_authority."2022_PM_Lines_Transfer_Current");
+
+ALTER TABLE local_authority."Bays_Transfer"
+    ADD PRIMARY KEY (id);
+
+ALTER TABLE local_authority."Lines_Transfer"
+    ADD PRIMARY KEY (id);
+
+-- Ensure that control times are populated
+
+UPDATE
+***/
+
+/***
+
+SELECT DISTINCT o.item_ref
+    FROM local_authority."2022_PM_Lines_Transfer_Current" o
+    WHERE o."RestrictionTypeID" < 200
+    AND o.item_ref NOT IN (
+    SELECT item_ref
+    FROM mhtc_operations."RBKC_item_ref_links_2022")
+
+-- Add "missing" "Bay" item_ref values to link table
+
+INSERT INTO mhtc_operations."RBKC_item_ref_links_2022"(item_ref, "GeometryID")
+SELECT item_ref, "GeometryID"
+FROM (
+SELECT DISTINCT ON (s."item_ref") s."item_ref",
+    cl."GeometryID" ,
+	-- cl."roadName1_Name" AS "RoadName",
+    ST_ClosestPoint(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS geom, ST_Distance(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS length
+      FROM mhtc_operations."Supply_2022" cl, (
+        SELECT o.item_ref, o.geom, o."RestrictionTypeID"
+        FROM local_authority."2022_PM_Lines_Transfer_Current" o
+        WHERE o."RestrictionTypeID" < 200
+        AND o.item_ref NOT IN (
+        SELECT item_ref
+        FROM mhtc_operations."RBKC_item_ref_links_2022") ) s
+	    WHERE cl."RestrictionTypeID" = s."RestrictionTypeID"
+	  --WHERE LENGTH(cl."roadName1_Name") > 0
+      ORDER BY s."item_ref", length
+      ) a
+
+-- and then add "missing" "Line" item_ref values to link table
+
+SELECT DISTINCT o.item_ref
+    FROM local_authority."2022_PM_Lines_Transfer_Current" o
+    WHERE o."RestrictionTypeID" > 200
+    AND o.item_ref NOT IN (
+    SELECT item_ref
+    FROM mhtc_operations."RBKC_item_ref_links_2022")
+
+
+INSERT INTO mhtc_operations."RBKC_item_ref_links_2022"(item_ref, "GeometryID")
+SELECT item_ref, "GeometryID"
+FROM (
+SELECT DISTINCT ON (s."item_ref") s."item_ref",
+    cl."GeometryID" ,
+	-- cl."roadName1_Name" AS "RoadName",
+    ST_ClosestPoint(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS geom, ST_Distance(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS length
+      FROM mhtc_operations."Supply_2022" cl, (
+        SELECT o.item_ref, o.geom, o."RestrictionTypeID"
+        FROM local_authority."2022_PM_Lines_Transfer_Current" o
+        WHERE o."RestrictionTypeID" > 200
+        AND o.item_ref NOT IN (
+        SELECT item_ref
+        FROM mhtc_operations."RBKC_item_ref_links_2022") ) s
+	    WHERE cl."RestrictionTypeID" = s."RestrictionTypeID"
+	  --WHERE LENGTH(cl."roadName1_Name") > 0
+      ORDER BY s."item_ref", length
+      ) a
+
+-- consider SYLs
+
+INSERT INTO mhtc_operations."RBKC_item_ref_links_2022"(item_ref, "GeometryID")
+SELECT item_ref, "GeometryID"
+FROM (
+SELECT DISTINCT ON (s."item_ref") s."item_ref",
+    cl."GeometryID" ,
+	-- cl."roadName1_Name" AS "RoadName",
+    ST_ClosestPoint(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS geom, ST_Distance(cl.geom, ST_LineInterpolatePoint(s.geom, 0.5)) AS length
+      FROM mhtc_operations."Supply_2022" cl, (
+        SELECT o.item_ref, o.geom, o."RestrictionTypeID"
+        FROM local_authority."2022_PM_Lines_Transfer_Current" o
+        WHERE o."RestrictionTypeID" = 224
+        AND o.item_ref NOT IN (
+        SELECT item_ref
+        FROM mhtc_operations."RBKC_item_ref_links_2022") ) s
+	    WHERE cl."RestrictionTypeID" IN (201, 221, 224)
+	  --WHERE LENGTH(cl."roadName1_Name") > 0
+      ORDER BY s."item_ref", length
+      ) a
+
+
+    ***/

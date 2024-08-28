@@ -23,7 +23,7 @@ from qgis.core import (
     Qgis,
     QgsMessageLog, QgsFeature, QgsGeometry,
     QgsFeatureRequest,
-    QgsRectangle, QgsPointXY, QgsWkbTypes
+    QgsRectangle, QgsPointXY, QgsWkbTypes, QgsPointLocator
 )
 
 from abc import ABCMeta, abstractstaticmethod
@@ -61,6 +61,12 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
     def identifyShapeType(self):
         pass
 
+    def getListPointsWithinTolerance(self, snapLineLayer, tolerance):
+        self.setTraceLineLayer(snapLineLayer)
+        self.setTolerance(tolerance)
+        newRestriction = self.prepareTOMsRestriction()
+        ptsList = newRestriction.geometry().asPolyline()
+        return ptsList
     def prepareTOMsRestriction(self):
         # function to generate geometry and copy attributes for given feature
 
@@ -89,6 +95,8 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
     def reduceLineShape(self):
         # assume that points follow line - use snap/trace
 
+        # TODO: actually want the nearest node ...
+
         line = generateGeometryUtils.getLineForAz(self.currFeature)
 
         TOMsMessageLog.logMessage("In reduceLineShape:  orig nr of pts = " + str(len(line)), level=Qgis.Info)
@@ -105,10 +113,13 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         diffEchelonAz = 0
 
         # deal with start point
-        startPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[0], self.traceLineLayer, self.tolerance)
+        startPointOnTraceLine = self.findNearestNodeOnLineLayer(line[0], self.traceLineLayer, self.tolerance)
 
         if not startPointOnTraceLine:
-            TOMsMessageLog.logMessage("In reduceLineShape:  Start point not within tolerance. Returning original geometry", level=Qgis.Info)
+            startPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[0], self.traceLineLayer, self.tolerance)
+
+        if not startPointOnTraceLine:
+            TOMsMessageLog.logMessage("In reduceLineShape:  Start point not within tolerance. Returning original geometry", level=Qgis.Warning)
             return self.currGeometry
 
         ptsList.append(startPointOnTraceLine.asPoint())
@@ -130,35 +141,45 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
         for i in range(traceStartVertex, len(line)-1, 1):
 
             TOMsMessageLog.logMessage("In reduceLineShape: i = " + str(i), level=Qgis.Info)
+
+            nextPointOnTraceLine = self.findNearestNodeOnLineLayer(line[i], self.traceLineLayer, self.tolerance)
+
             Az = generateGeometryUtils.checkDegrees(line[i].azimuth(line[i + 1]))
 
-            if i == traceStartVertex:
-                prevAz = initialAzimuth
-                #Turn = generateGeometryUtils.turnToCL(prevAz, Az)
+            if not nextPointOnTraceLine:
 
-            TOMsMessageLog.logMessage("In reduceLineShape: geometry: " + str(line[i].x()) + ":" + str(line[i].y()) + " " + str(line[i+1].x()) + ":" + str(line[i+1].y()) + " " + str(Az), level=Qgis.Info)
-            # get angle at vertex
+                if i == traceStartVertex:
+                    prevAz = initialAzimuth
+                    #Turn = generateGeometryUtils.turnToCL(prevAz, Az)
 
-            #angle = self.angleAtVertex( self.currGeometry.vertexAt(i), self.currGeometry.vertexAt(i-1),
-            #                             self.currGeometry.vertexAt(i+1))
-            #checkTurn = 90.0 - angle
+                TOMsMessageLog.logMessage("In reduceLineShape: geometry: " + str(line[i].x()) + ":" + str(line[i].y()) + " " + str(line[i+1].x()) + ":" + str(line[i+1].y()) + " " + str(Az), level=Qgis.Info)
+                # get angle at vertex
 
-            newAz, distWidth = generateGeometryUtils.calcBisector(prevAz, Az, Turn, distanceFromTraceLine)
+                #angle = self.angleAtVertex( self.currGeometry.vertexAt(i), self.currGeometry.vertexAt(i-1),
+                #                             self.currGeometry.vertexAt(i+1))
+                #checkTurn = 90.0 - angle
 
-            TOMsMessageLog.logMessage("In reduceLineShape: newAz: " + str(newAz), level=Qgis.Info)
+                newAz, distWidth = generateGeometryUtils.calcBisector(prevAz, Az, Turn, distanceFromTraceLine)
 
-            cosa, cosb = generateGeometryUtils.cosdir_azim(newAz + diffEchelonAz)
-            ptsList.append(
-                QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)))
-            TOMsMessageLog.logMessage("In reduceLineShape: point: {}".format(QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)).asWkt()),
-                                      level=Qgis.Info)
+                TOMsMessageLog.logMessage("In reduceLineShape: newAz: " + str(newAz), level=Qgis.Info)
+
+                cosa, cosb = generateGeometryUtils.cosdir_azim(newAz + diffEchelonAz)
+                nextPointOnTraceLine = QgsGeometry.fromPointXY(QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)))
+                TOMsMessageLog.logMessage("In reduceLineShape: point: {}".format(QgsPointXY(line[i].x() + (float(distWidth) * cosa), line[i].y() + (float(distWidth) * cosb)).asWkt()),
+                                          level=Qgis.Info)
 
             prevAz = Az
+
+            ptsList.append(nextPointOnTraceLine.asPoint())
 
         # now add the last point
 
         #lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[i+1], self.traceLineLayer, self.tolerance)  # TODO: need this logic
-        lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[len(line)-1], self.traceLineLayer, self.tolerance)  # issues for multi-line features
+        lastPointOnTraceLine = self.findNearestNodeOnLineLayer(line[len(line)-1], self.traceLineLayer, self.tolerance)
+
+        if not lastPointOnTraceLine:
+            lastPointOnTraceLine, traceLineFeature = generateGeometryUtils.findNearestPointOnLineLayer(line[len(line)-1], self.traceLineLayer, self.tolerance)  # issues for multi-line features
+
         if not lastPointOnTraceLine:
             TOMsMessageLog.logMessage("In reduceLineShape:  Last point not within tolerance.", level=Qgis.Info)
             lastPointOnTraceLine = QgsGeometry.fromPointXY(line[len(line)-1])
@@ -744,3 +765,53 @@ class restrictionToImport(QObject, snapTraceUtilsMixin):
             outputLine.append(inputLine[v])
 
         return outputLine
+
+    #---
+
+    def findNearestNodeOnLineLayer(self, searchPt, lineLayer, tolerance):
+        # given a point, find the nearest point (within the tolerance) within the line layer
+        # returns QgsPoint
+        TOMsMessageLog.logMessage("In findNearestNodeOnLineLayer. Checking lineLayer: {}".format(lineLayer.name()), level=Qgis.Info)
+        searchRect = QgsRectangle(searchPt.x() - tolerance,
+                                  searchPt.y() - tolerance,
+                                  searchPt.x() + tolerance,
+                                  searchPt.y() + tolerance)
+
+        request = QgsFeatureRequest()
+        request.setFilterRect(searchRect)
+        request.setFlags(QgsFeatureRequest.ExactIntersect)
+
+        shortestDistance = float("inf")
+        #nearestPoint = QgsFeature()
+
+        ptLocator = QgsPointLocator(layer=lineLayer, extent=searchRect)
+
+        if ptLocator.nearestVertex(searchPt, tolerance).hasVertex():
+
+            closestPoint = ptLocator.nearestVertex(searchPt, tolerance).point()
+            return QgsGeometry.fromPointXY(closestPoint)
+
+        else:
+
+            # Loop through all features in the layer to find the closest feature
+            for f in lineLayer.getFeatures(request):
+
+                TOMsMessageLog.logMessage("In findNearestNodeOnLineLayer: {}".format(f.id()), level=Qgis.Info)
+
+                closestPtOnFeature = f.geometry().nearestPoint(QgsGeometry.fromPointXY(searchPt))
+                dist = f.geometry().distance(QgsGeometry.fromPointXY(searchPt))
+                if dist < shortestDistance:
+                    shortestDistance = dist
+                    closestPoint = closestPtOnFeature
+                    closestFeature = f
+
+            TOMsMessageLog.logMessage("In findNearestPointL: shortestDistance: " + str(shortestDistance), level=Qgis.Info)
+
+            if shortestDistance < float("inf"):
+                #nearestPoint = QgsFeature()
+                # add the geometry to the feature,
+                #nearestPoint.setGeometry(QgsGeometry(closestPtOnFeature))
+                #TOMsMessageLog.logMessage("findNearestPointL: nearestPoint geom type: " + str(nearestPoint.wkbType()), tag="TOMs panel")
+                return closestPoint   # returns a geometry
+
+        return None

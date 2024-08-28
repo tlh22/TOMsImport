@@ -34,6 +34,22 @@ class matchLists(object):
         ("GeomShapeID", "GeomShapeID"),
         ("AzimuthToRoadCentreLine", "AzimuthToRoadCentreLine"),
         ("TimePeriodID", "TimePeriodID"),
+        ("id", "id"),
+        ("item_ref",  "item_ref"),
+        ("Order_type", "Order_type"),
+        ("Street_nam", "Street_nam"),
+        ("restrictio", "restrictio"),
+        ("times_of_e", "times_of_e"),
+        ("Ord_Title", "Ord_Title"),
+        ("oCashless_", "oCashless_"),
+        ("oCar_Club_", "oCar_Club_"),
+        ("bOrganisat", "bOrganisat"),
+        ("bTariff", "bTariff"),
+        ("bPandDMach", "bPandDMach"),
+        ("bEchelon", "bEchelon"),
+        ("bNoBays", "bNoBays"),
+        ("bLocation", "bLocation"),
+        ("oCar_club1", "oCar_club1"),
     ]
 
 

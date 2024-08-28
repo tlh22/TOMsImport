@@ -256,6 +256,7 @@ class TOMsImport:
 
             res = self.generateTOMsRestrictions(importLayer, snapLayer, outputLayer, tolerance)
 
+    """
     def generateLinesFromPolygons(self, polygonLayer, snapLineLayer, outputLayer, tolerance):
 
         TOMsMessageLog.logMessage("In generateLinesFromPolygons", level=Qgis.Info)
@@ -284,20 +285,20 @@ class TOMsImport:
 
             fields = outputLayer.fields()
             new_feat = QgsFeature(fields)
-
-            """ somehow neeed to add attributes ... """
-            #self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
-
+    """
+    #        """ somehow neeed to add attributes ... """
+    #        #self.copyAttributesFromList(new_feat, outputLayer, currFeature, polygonLayer, matchLists.baysMatchList)
+    """
             new_feat.setGeometry(newLine)
             outputLayer.addFeature(new_feat)
 
         editCommitStatus = outputLayer.commitChanges()
-
-        """reply = QMessageBox.information(None, "Check",
-                                        "SnapNodes: Status for commit to " + sourceLineLayer.name() + " is: " + str(
-                                            editCommitStatus),
-                                        QMessageBox.Ok)"""
-
+    """
+    #    """reply = QMessageBox.information(None, "Check",
+    #                                    "SnapNodes: Status for commit to " + sourceLineLayer.name() + " is: " + str(
+    #                                        editCommitStatus),
+    #                                    QMessageBox.Ok)"""
+    """
         if editCommitStatus is False:
             # save the active layer
             TOMsMessageLog.logMessage("Error: snapNodesP: Changes to " + outputLayer.name() + " failed: " + str(
@@ -308,6 +309,7 @@ class TOMsImport:
                                             QMessageBox.Ok)
 
         return
+    """
 
     def generateTOMsRestrictions(self, inputLayer, snapLineLayer, outputLayer, tolerance):
 
@@ -336,11 +338,15 @@ class TOMsImport:
                 outputLayer.addFeature(newRestriction)
                 
             """
-            if inputLayer.wkbType() == QGis.WKBLineString:
+            if inputLayer.wkbType() == QgsWkbTypes.LineString or inputLayer.wkbType() == QgsWkbTypes.MultiLineString:  # LineGeometry after 3.30
 
-                continue
+                ptsList = restrictionToImport(currFeature).getListPointsWithinTolerance(snapLineLayer, tolerance)
 
-            elif inputLayer.wkbType() == QGis.WKBPolygon:
+                #reply = QMessageBox.information(None, "Check",
+                #                                "Line geometry type with nr pts: " + str(len(ptsList)),
+                #                                QMessageBox.Ok)
+
+            elif inputLayer.wkbType() == QgsWkbTypes.Polygon or inputLayer.wkbType() == QgsWkbTypes.MultiPolygon:   # PolygonGeometry after 3.30
 
                 ptsList = importPolygon(currFeature).getListPointsInPolygonWithinTolerance(snapLineLayer, tolerance)
 

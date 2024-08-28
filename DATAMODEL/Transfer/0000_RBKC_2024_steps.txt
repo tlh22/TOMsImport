@@ -1,0 +1,9 @@
+--
+
+0. As per Supply preparation - load db, create road casement, ...
+
+1. Import restrictions into QGIS and save to db
+2. Use 0001a_transfer_from_pm.sql to create table with correct columns. Will need to check the import from the original table uses the correct names
+3. Deal with lookups. Will need to amend restriction types and times.
+4. Set up match list (to allow copy of attributes)
+5. Run import
