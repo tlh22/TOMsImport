@@ -5,17 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="72867712-4a4f-4a75-a1c1-0f3e187ebfcb" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0000_RBKC_2024_steps.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0001c_rename_tables.sql" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0003d_break_bays_at_change_locations.sql" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0003e_break_lines_at_change_locations.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/import_wandsworth.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/import_wandsworth.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DATAMODEL/Transfer/0001a_transfer_from_pm.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0001a_transfer_from_pm.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATAMODEL/Geojson/1003_add_required_attributes.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Geojson/1003_add_required_attributes.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATAMODEL/Geojson/1004_recognise_restriction_types.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Geojson/1004_recognise_restriction_types.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATAMODEL/Geojson/1005_time_periods.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Geojson/1005_time_periods.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATAMODEL/Geojson/1006_convert_polygons_to_lines.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Geojson/1006_convert_polygons_to_lines.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DATAMODEL/Transfer/0000_RBKC_2024_steps.txt" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0000_RBKC_2024_steps.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DATAMODEL/Transfer/0003_move_to_toms_structure.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/0003_move_to_toms_structure.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DATAMODEL/Transfer/0003_populate_lookups.sql" beforeDir="false" afterPath="$PROJECT_DIR$/DATAMODEL/Transfer/__0003_populate_lookups.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TOMsImport_.py" beforeDir="false" afterPath="$PROJECT_DIR$/TOMsImport_.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/importLineString.py" beforeDir="false" afterPath="$PROJECT_DIR$/importLineString.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/importMatchLists.py" beforeDir="false" afterPath="$PROJECT_DIR$/importMatchLists.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -140,13 +138,13 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "last_opened_file_path": "C:/Users/tim_sbnnicy/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/TOMsImport/DATAMODEL/Transfer"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/tim_sbnnicy/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/TOMsImport/DATAMODEL/Transfer&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\tim_sbnnicy\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\TOMsImport\DATAMODEL\Transfer" />

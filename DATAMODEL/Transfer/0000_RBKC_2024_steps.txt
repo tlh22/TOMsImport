@@ -7,3 +7,18 @@
 3. Deal with lookups. Will need to amend restriction types and times.
 4. Set up match list (to allow copy of attributes)
 5. Run import
+
+Identify restrictions from previous surveys and restricitons that are no longer present
+
+Add in new restrictions
+
+Add in existing restrictions
+
+check for overlaps
+
+Check for lines that don't touch the kerb
+
+...
+
+
+Create table to link item_ref with GeometryID

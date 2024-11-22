@@ -1,13 +1,15 @@
 -- deal with the time periods
 
+DROP TABLE IF EXISTS import_geojson."TimePeriods_Transfer";
 CREATE TABLE import_geojson."TimePeriods_Transfer"
 (
     id SERIAL,
     control_time_details character varying(254) COLLATE pg_catalog."default",
-    "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
     "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
     "TimePeriodCode" integer,
-    "AdditionalConditionCode" integer
+    "AdditionalConditionCode" integer,
+	"MaxStayID" integer,
+	"NoReturnTimeID" integer
 )
 
 TABLESPACE pg_default;
@@ -20,15 +22,39 @@ ALTER TABLE import_geojson."TimePeriods_Transfer"
 
 INSERT INTO import_geojson."TimePeriods_Transfer"(
 	control_time_details)
-SELECT DISTINCT hours_of_operation
-FROM (SELECT hours_of_operation
-     FROM import_geojson."Merged_Bays"
+SELECT DISTINCT operating_hours
+FROM (SELECT operating_hours
+     FROM import_geojson."Merged_Bays_selected"
      UNION
-     SELECT hours_of_operation
-     FROM import_geojson."Merged_Lines") AS a;
+     SELECT operating_hours
+     FROM import_geojson."Merged_Lines_selected") AS a;
+	 
+/***
+DROP TABLE IF EXISTS "import_geojson"."TimePeriods_Transfer";
+CREATE TABLE import_geojson."TimePeriods_Transfer"
+(
+    "Code" SERIAL,
+    control_time_details character varying(254) COLLATE pg_catalog."default",
+    "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
+    "TimePeriodCode" integer,
+    "AdditionalConditionCode" integer,
+	"MaxStayID" integer,
+	"NoReturnID" integer
+);
 
-UPDATE import_geojson."TimePeriods_Transfer"
-SET "TimePeriodDescription" = control_time_details;
+ALTER TABLE "import_geojson"."TimePeriods_Transfer" OWNER TO "postgres";
+
+ALTER TABLE "import_geojson"."TimePeriods_Transfer"
+    ADD PRIMARY KEY ("Code");
+
+-- Now load
+
+COPY "import_geojson"."TimePeriods_Transfer"("control_time_details", "AdditionalConditionDescription", "TimePeriodCode", "AdditionalConditionCode", "MaxStayID", "NoReturnID" )
+FROM 'C:\Users\Public\Documents\TimePeriods_Transfer.csv'
+DELIMITER ','
+CSV HEADER;
+***/
+
 
  ... manual update of values ...
 
@@ -40,12 +66,12 @@ UPDATE import_geojson."TimePeriods_Transfer" As p
 
 -- now update
 
-UPDATE import_geojson."Merged_Bays" As p
-	SET "TimePeriodID"=l."TimePeriodCode"
+UPDATE import_geojson."Merged_Bays_selected" As p
+	SET "TimePeriodID"=l."TimePeriodCode", "MaxStayID"=l."MaxStayID", "NoReturnTimeID"=l."NoReturnTimeID"
 	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
+	WHERE p.operating_hours = l.control_time_details;
 
-UPDATE import_geojson."Merged_Lines" As p
+UPDATE import_geojson."Merged_Lines_selected" As p
 	SET "NoWaitingTimeID"=l."TimePeriodCode"
 	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
+	WHERE p.operating_hours = l.control_time_details;

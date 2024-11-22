@@ -33,16 +33,25 @@ UPDATE import_geojson."Merged_Bays"
 SET "GeometryID" = gid;
 
 ALTER TABLE import_geojson."Merged_Bays"
-    ADD COLUMN "RestrictionTypeID" integer;
+    ADD COLUMN IF NOT EXISTS "RestrictionTypeID" integer;
 
 ALTER TABLE import_geojson."Merged_Bays"
-    ADD COLUMN "GeomShapeID" integer;
+    ADD COLUMN IF NOT EXISTS "GeomShapeID" integer;
 
 ALTER TABLE import_geojson."Merged_Bays"
-    ADD COLUMN "AzimuthToRoadCentreLine" double precision;
+    ADD COLUMN IF NOT EXISTS "AzimuthToRoadCentreLine" double precision;
 
 ALTER TABLE import_geojson."Merged_Bays"
-    ADD COLUMN "TimePeriodID" integer;
+    ADD COLUMN IF NOT EXISTS "NrBays" integer;
+	
+ALTER TABLE import_geojson."Merged_Bays"
+    ADD COLUMN IF NOT EXISTS "TimePeriodID" integer;
 
 ALTER TABLE import_geojson."Merged_Bays"
-    ADD COLUMN "CPZ" character varying(40) COLLATE pg_catalog."default";
+    ADD COLUMN IF NOT EXISTS "MaxStayID" integer;
+	
+ALTER TABLE import_geojson."Merged_Bays"
+    ADD COLUMN IF NOT EXISTS "NoReturnID" integer;
+	
+ALTER TABLE import_geojson."Merged_Bays"
+    ADD COLUMN IF NOT EXISTS "CPZ" character varying(40) COLLATE pg_catalog."default";

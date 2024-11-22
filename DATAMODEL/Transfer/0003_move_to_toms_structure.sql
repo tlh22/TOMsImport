@@ -303,11 +303,12 @@ ALTER TABLE mhtc_operations."Bay_Overlaps"
 INSERT INTO mhtc_operations."Bay_Overlaps" ("GeometryID_1", "RestrictionTypeID_1", "GeometryID_2", "RestrictionTypeID_2", "RoadName", "LengthOfOverlap", geom)
 SELECT s1."GeometryID" AS "GeometryID_1", s1."RestrictionTypeID" AS "RestrictionTypeID_1",
 s2."GeometryID"  AS "GeometryID_2", s2."RestrictionTypeID" AS "RestrictionTypeID_2", s1."RoadName", ST_Length(ST_Intersection(s1.geom, s2.geom)) AS "LengthOfOverlap", ST_Intersection(s1.geom, s2.geom) AS geom
-FROM toms."Bays" s1, toms."Bays" s2
+FROM toms."Bays" s1, toms."Bays" s2, local_authority."Bays_Transfer" t
 WHERE ST_INTERSECTS(ST_LineSubstring (s1.geom, 0.1, 0.9), ST_Buffer(s2.geom, 0.1, 'endcap=flat'))
 AND s1."GeometryID" < s2."GeometryID"
 AND s1."GeomShapeID" < 100
 AND s2."GeomShapeID" < 100
+AND (ST_Within(s1.geom, ST_Buffer(t.geom, 0.1)) OR ST_Within(s2.geom, ST_Buffer(t.geom, 0.1)))
 ORDER BY s1."GeometryID", s1."RoadName";
 
 GRANT ALL ON TABLE mhtc_operations."Bay_Overlaps" TO postgres;
