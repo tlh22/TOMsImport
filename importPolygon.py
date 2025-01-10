@@ -156,4 +156,7 @@ class importPolygon(QObject, snapTraceUtilsMixin):
 
         smallAngleList.sort(reverse=True)
 
+        if len(smallAngleList) == 0:
+            return None
+
         return smallAngleList[0]
