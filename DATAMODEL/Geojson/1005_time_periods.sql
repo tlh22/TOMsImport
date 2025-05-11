@@ -7,14 +7,10 @@ CREATE TABLE import_geojson."TimePeriods_Transfer"
     "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
     "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
     "TimePeriodCode" integer,
-<<<<<<< Updated upstream
-    "AdditionalConditionCode" integer
-=======
     "AdditionalConditionCode" integer,
 	"MaxStayID" integer,
 	"NoReturnID" integer,
 	"NoLoadingTimeID" integer
->>>>>>> Stashed changes
 )
 
 TABLESPACE pg_default;
@@ -27,25 +23,16 @@ ALTER TABLE import_geojson."TimePeriods_Transfer"
 
 INSERT INTO import_geojson."TimePeriods_Transfer"(
 	control_time_details)
-<<<<<<< Updated upstream
-SELECT DISTINCT hours_of_operation
-FROM (SELECT hours_of_operation
-     FROM import_geojson."Merged_Bays"
-     UNION
-     SELECT hours_of_operation
-     FROM import_geojson."Merged_Lines") AS a;
-
-UPDATE import_geojson."TimePeriods_Transfer"
-SET "TimePeriodDescription" = control_time_details;
-=======
 SELECT DISTINCT "Operating_hours"
 FROM (SELECT "Operating_hours"
      FROM import_geojson."Merged_Bays"
      UNION
      SELECT "Operating_hours"
      FROM import_geojson."Merged_Lines") AS a;
-	 
->>>>>>> Stashed changes
+
+UPDATE import_geojson."TimePeriods_Transfer"
+SET "TimePeriodDescription" = control_time_details;
+
 
  ... manual update of values ...
 
@@ -53,16 +40,6 @@ FROM (SELECT "Operating_hours"
 -- now update
 
 UPDATE import_geojson."Merged_Bays" As p
-<<<<<<< Updated upstream
-	SET "TimePeriodID"=l."TimePeriodCode"
-	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
-
-UPDATE import_geojson."Merged_Lines" As p
-	SET "NoWaitingTimeID"=l."TimePeriodCode"
-	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
-=======
 	SET "TimePeriodID"=l."TimePeriodCode", "MaxStayID"=l."MaxStayID", "NoReturnID"=l."NoReturnID"
 	FROM import_geojson."TimePeriods_Transfer" l
 	WHERE p."Operating_hours" = l.control_time_details;
@@ -93,4 +70,3 @@ WHERE "TimePeriodID" NOT IN (
 SELECT DISTINCT "Code"
 FROM "toms_lookups"."TimePeriodsInUse");
 
->>>>>>> Stashed changes
