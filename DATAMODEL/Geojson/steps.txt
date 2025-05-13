@@ -1,14 +1,25 @@
 Steps to load geoJson
 
-1. Setup project including road casement
+1. Setup project - follow through Supply setup to start of field survey
+ - may need to adjust slightly ...
+ 
+ To prepare bays/lines/etc
+
 1. Load to QGIS
 2. Reproject layer to 27700 (in QGIS - Processing->reproject)
 3. Make into single geometry (in QGIS - Processing->Multiparts to single parts)
 4. Add sequence
-5. Move to "standard tables"
+5. Move to "standard tables" *** Need to ensure that there is a unique id transferred, i.e., GeometryID
 6. Add required fields
 7. Identify restriction types and make linkages
 8. identify time periods and make linkages
+
+Check for missed restrictions
+SELECT l1."GeometryID", l1."RestrictionTypeID", l2."GeometryID"
+FROM import_geojson."Merged_Bays_LineString" l1 LEFT JOIN import_geojson."Merged_Bays_LineString_Singl" l2 ON l1."GeometryID" = l2."GeometryID"
+WHERE l1."RestrictionTypeID" NOT IN (103, 147)
+AND l2."GeometryID" IS NULL
+ORDER BY l1."GeometryID"
 
 Run TOMs_import on polygon layers. Use tolerance of 0.5 for bays and 0.25 for lines
 
