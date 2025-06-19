@@ -47,13 +47,13 @@ ALTER TABLE import_geojson."Merged_Bays"
 ALTER TABLE import_geojson."Merged_Bays"
     ADD COLUMN "TimePeriodID" integer;
 
-ALTER TABLE import_geojson."Merged_Bays"
-<<<<<<< Updated upstream:DATAMODEL/Geojson/1003_add_required_attributes.sql
-    ADD COLUMN "CPZ" character varying(40) COLLATE pg_catalog."default";
-=======
+ALTER TABLE IF EXISTS import_geojson."Merged_Bays"
+    ADD COLUMN IF NOT EXISTS "CPZ" character varying(40) COLLATE pg_catalog."default";
+
+ALTER TABLE IF EXISTS import_geojson."Merged_Bays"  
     ADD COLUMN IF NOT EXISTS "MaxStayID" integer;
 	
-ALTER TABLE import_geojson."Merged_Bays"
+ALTER TABLE IF EXISTS import_geojson."Merged_Bays"
     ADD COLUMN IF NOT EXISTS "NoReturnID" integer;
 	
 ALTER TABLE import_geojson."Merged_Bays"
@@ -96,4 +96,4 @@ WHERE "NoLoadingTimeID" IS NOT NULL
 WHERE "TimePeriodID" NOT IN (
 SELECT DISTINCT "Code"
 FROM "toms_lookups"."TimePeriodsInUse");
->>>>>>> Stashed changes:DATAMODEL/Geojson/1003b_add_required_attributes.sql
+
