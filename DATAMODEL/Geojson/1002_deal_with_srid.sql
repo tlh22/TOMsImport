@@ -5,6 +5,9 @@
 
 -- Loop through all the tables and change
 
+
+Actually better to use reproject in toolbox
+
 DO
 $do$
 DECLARE
@@ -25,3 +28,5 @@ BEGIN
 
 END
 $do$;
+
+
