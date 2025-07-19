@@ -57,15 +57,108 @@ CREATE TABLE IF NOT EXISTS import_geojson."MedialAxis_LineString"
 
 TABLESPACE pg_default;
 
+CREATE INDEX IF NOT EXISTS "sidx_MedialAxis_LineString_geom"
+    ON import_geojson."MedialAxis_LineString" USING gist
+    (geom)
+    TABLESPACE pg_default;
+
 INSERT INTO import_geojson."MedialAxis_LineString"(
 	ogc_fid, "Zone_type", "Zone_name", "Street_name", "Restriction_type_codes", "Restriction_type_names", "Parking_code", "Bays", "Entitlements", "Operating_hours", "Exceptions", "Tariffs", "Note",
 	geom)
 SELECT ogc_fid, Zone_type, Zone_name, Street_name, Restriction_type_codes, Restriction_type_names, Parking_code, Bays, Entitlements, Operating_hours, Exceptions, Tariffs, Note,
-	(ST_DUMP(ST_LineMerge(ST_ApproximateMedialAxis(wkb_geometry)))).geom AS geom
+	(ST_DUMP(ST_LineMerge(ST_ApproximateMedialAxis(geom)))).geom AS geom
 	FROM import_geojson."Parking_Restrictions_Polygon";
+
+-- Create table with all end/start points
+
+DROP TABLE IF EXISTS import_geojson."MedialAxis_Ends" CASCADE;
+
+CREATE TABLE import_geojson."MedialAxis_Ends"
+(
+  id SERIAL,
+  fid INTEGER,
+  ogc_fid INTEGER,
+  geom public.geometry(Point,27700),
+  CONSTRAINT "MedialAxis_Ends_pkey" PRIMARY KEY (id)
+)
+WITH (
+  OIDS=FALSE
+);
+
+ALTER TABLE import_geojson."MedialAxis_Ends"
+  OWNER TO postgres;
+GRANT ALL ON TABLE import_geojson."MedialAxis_Ends" TO postgres;
+
+-- DROP INDEX import_geojson."sidx_MedialAxis_Ends_geom"
+
+CREATE INDEX "sidx_MedialAxis_Ends_geom"
+  ON import_geojson."MedialAxis_Ends"
+  USING gist
+  (geom);
+
+INSERT INTO import_geojson."MedialAxis_Ends" (fid, ogc_fid, geom)
+SELECT id, ogc_fid, ST_StartPoint(geom)
+FROM import_geojson."MedialAxis_LineString"
+UNION
+SELECT id, ogc_fid, ST_EndPoint(geom)
+FROM import_geojson."MedialAxis_LineString";
+
+-- find all the lines that do not have matches at start/end and are < 1.5m
+
+DELETE FROM import_geojson."MedialAxis_LineString"
+WHERE id NOT IN (
+SELECT m1.id
+FROM import_geojson."MedialAxis_LineString" m1
+WHERE (
+	ST_StartPoint(m1.geom) IN (
+	SELECT e.geom
+	FROM import_geojson."MedialAxis_Ends" e
+	WHERE e.ogc_fid = m1.ogc_fid
+	AND e.fid != m1.id
+	)
+AND ST_EndPoint(m1.geom) IN (
+	SELECT e.geom
+	FROM import_geojson."MedialAxis_Ends" e
+	WHERE e.ogc_fid = m1.ogc_fid
+	AND e.fid != m1.id
+	)
+)
+--and m1.ogc_fid = 16908
+ORDER BY m1.ogc_fid, id
+)
+AND ST_Length(geom) < 1.5;
+
+DELETE FROM import_geojson."MedialAxis_Ends"
+WHERE fid NOT IN (SELECT id
+				  FROM import_geojson."MedialAxis_LineString")
+					  ;
+					  
+-- check
+SELECT ogc_fid, COUNT(id)
+FROM import_geojson."MedialAxis_LineString"
+WHERE id NOT IN (
+SELECT m1.id
+FROM import_geojson."MedialAxis_LineString" m1
+WHERE (
+	ST_StartPoint(m1.geom) IN (
+	SELECT e.geom
+	FROM import_geojson."MedialAxis_Ends" e
+	WHERE e.ogc_fid = m1.ogc_fid
+	AND e.fid != m1.id
+	)
+AND ST_EndPoint(m1.geom) IN (
+	SELECT e.geom
+	FROM import_geojson."MedialAxis_Ends" e
+	WHERE e.ogc_fid = m1.ogc_fid
+	AND e.fid != m1.id
+	)
+))
+GROUP BY ogc_fid
+HAVING COUNT(id) > 2
 
 -- keep the longest sections
 
+/***
 DELETE FROM import_geojson."MedialAxis_LineString"
 WHERE id NOT IN (
 SELECT t.id
@@ -76,6 +169,7 @@ GROUP BY ogc_fid) g
 WHERE t.ogc_fid = g.ogc_fid
 AND (ST_LENGTH(t.geom) = max_Length
 OR ST_LENGTH(t.geom) > 1.5));
+***/
 
 -- Now join any lines that are part of the same feature
 
@@ -91,6 +185,7 @@ DECLARE
 	list_ids integer [];
 	delete_list integer [];
 	this_id integer;
+	curr_id integer;
 	this_fid integer;
 	this_geom geometry;
 	this_start_point geometry;
@@ -113,6 +208,7 @@ BEGIN
     FOR r1 IN 
 		SELECT ogc_fid, array_agg(id) AS list_ids, COUNT(*) AS nr_lines
 		FROM import_geojson."MedialAxis_LineString"
+		--WHERE ogc_fid = 3245 -- 12840
 		GROUP BY ogc_fid
 		HAVING COUNT(*) > 1
 		ORDER BY ogc_fid
@@ -123,27 +219,48 @@ BEGIN
 
 		-- get a starting section
 		
-		SELECT DISTINCT ON (m1.ogc_fid) 
-		m1.id, m1.ogc_fid, m1.geom, ST_STARTPOINT(m1.geom) AS start_pt, ST_ENDPOINT(m1.geom) AS end_pt
-		INTO start_id, start_fid, new_geom, start_pt, end_pt
-		FROM import_geojson."MedialAxis_LineString" m1
-		WHERE m1.id = ANY (list_ids)
-		ORDER BY m1.ogc_fid ASC, m1.id;
+		SELECT m.id, m.geom, ST_STARTPOINT(m.geom), ST_ENDPOINT(m.geom)
+		INTO start_id, new_geom, start_pt, end_pt
+		FROM import_geojson."MedialAxis_LineString" m
+		WHERE m.ogc_fid = r1.ogc_fid 
+		AND id NOT IN (
+			SELECT m1.id
+			FROM import_geojson."MedialAxis_LineString" m1
+			WHERE (
+				ST_StartPoint(m1.geom) IN (
+				SELECT e.geom
+				FROM import_geojson."MedialAxis_Ends" e
+				WHERE e.ogc_fid = m1.ogc_fid
+				AND e.fid != m1.id
+				)
+			AND ST_EndPoint(m1.geom) IN (
+				SELECT e.geom
+				FROM import_geojson."MedialAxis_Ends" e
+				WHERE e.ogc_fid = m1.ogc_fid
+				AND e.fid != m1.id
+				)
+			)
+			AND m1.ogc_fid = m.ogc_fid
+			ORDER BY m1.ogc_fid, id
+			)
+		LIMIT 1;
 		
 		list_ids = ARRAY_REMOVE(list_ids, start_id);
+		
 		delete_list = list_ids;
 		nr_matches = 1;
+		curr_id = start_id;
 		
-		--RAISE NOTICE '*****--- Considering % (%)... %', r1.ogc_fid, r1.nr_lines, list_ids;
+		RAISE NOTICE '*****--- Starting with % ... ', start_id;
 		
 		WHILE nr_matches < r1.nr_lines
 
 		LOOP
 		
-			fieldCheck = TRUE;
+			--fieldCheck = TRUE;
 			
-			WHILE fieldCheck
-			LOOP
+			--WHILE fieldCheck
+			--LOOP
 			
 				-- find sections that are linked, i.e., close ...
 				fieldCheck = FALSE;
@@ -153,124 +270,63 @@ BEGIN
 				SELECT
 				m2.id, m2.ogc_fid, m2.geom, ST_STARTPOINT(m2.geom) AS start_point, ST_ENDPOINT(m2.geom) AS end_point, TRUE AS fieldCheck
 				INTO this_id, this_fid, this_geom, this_start_point, this_end_point, fieldCheck
-				FROM import_geojson."MedialAxis_LineString" m2
+				FROM import_geojson."MedialAxis_LineString" m2, import_geojson."MedialAxis_LineString" m1
 				WHERE m2.id = ANY (list_ids)
-				AND (
-				ST_DWITHIN(end_pt, ST_STARTPOINT(m2.geom), check_distance) 
-				OR ST_DWITHIN(end_pt, ST_ENDPOINT(m2.geom), check_distance)
-				OR ST_DWITHIN(start_pt, ST_STARTPOINT(m2.geom), check_distance)
-                OR ST_DWITHIN(start_pt, ST_ENDPOINT(m2.geom), check_distance)				
-				)
-				ORDER BY m2.id ASC
-				LIMIT 1;
-			
+				AND m1.id = curr_id
+				AND m2.id IN (
+						SELECT fid
+						FROM import_geojson."MedialAxis_Ends" e
+						WHERE (geom = ST_StartPoint(m1.geom)
+						OR geom = ST_EndPoint(m1.geom))
+						AND e.fid != m1.id
+					)
+					--AND m1.ogc_fid = m2.ogc_fid
+					AND m1.id != m2.id
+					ORDER BY m1.ogc_fid, id
+					;
+									
 				IF fieldCheck THEN
 				
-					--RAISE NOTICE '*****---      Found % ...', this_id;
+					RAISE NOTICE '*****---      Found % ...', this_id;
 					nr_matches = nr_matches + 1;
 					list_ids = ARRAY_REMOVE(list_ids, this_id);
+					curr_id = this_id;
 					
-					IF ST_DWITHIN(end_pt, this_start_point, check_distance) THEN
+					IF end_pt = this_start_point THEN
 						new_geom = ST_MAKELINE(new_geom, this_geom);
 						end_pt = this_end_point;
-					ELSIF ST_DWITHIN(end_pt, this_end_point, check_distance) THEN
+						RAISE NOTICE '*****--- end->start ...';
+					ELSIF end_pt = this_end_point THEN
 						new_geom = ST_MAKELINE(new_geom, ST_REVERSE(this_geom));
 						end_pt = this_start_point;
-					ELSIF ST_DWITHIN(start_pt, this_start_point, check_distance) THEN
+						RAISE NOTICE '*****--- end->end ...';
+					ELSIF start_pt = this_start_point THEN
 						new_geom = ST_MAKELINE(ST_REVERSE(this_geom), new_geom);
 						start_pt = this_end_point;
-					ELSIF ST_DWITHIN(start_pt, this_end_point, check_distance) THEN
+						RAISE NOTICE '*****--- start->start ...';
+					ELSIF start_pt = this_end_point THEN
 						new_geom = ST_MAKELINE(this_geom, new_geom);
-						end_pt = this_start_point;
+						start_pt = this_start_point;
+						RAISE NOTICE '*****--- start->end ...';
 					ELSE
 					
 						RAISE EXCEPTION 'fid % - error creating link for %. Distance was % ...', r1.ogc_fid, this_id, ST_LENGTH(ST_ShortestLine(this_geom, new_geom)); 
 						
 					END IF;
-					
+				
+				ELSE
 					--nr_matches = nr_matches + 1;
+					RAISE EXCEPTION '^^^ Error no match found'; 
 
 				END IF;
 				
 				RAISE NOTICE '*****---      Nr Matches % ...', nr_matches;
 					
-			END LOOP;
-			
-			IF nr_matches < r1.nr_lines THEN
-			
-				-- There are still sections to add, but they are separated
-		
-				--RAISE NOTICE 'Not all lines matched for % - % vs %', r1.ogc_fid, nr_matches, r1.nr_lines; 
-				
-				-- Find the closest section that has not been used ...
-
-				SELECT
-				m2.id, m2.ogc_fid, m2.geom, ST_STARTPOINT(m2.geom) AS start_point, ST_ENDPOINT(m2.geom) AS end_point, ST_LENGTH(ST_ShortestLine(m2.geom, new_geom))
-				INTO this_id, this_fid, this_geom, this_start_point, this_end_point, shortest_distance
-				FROM import_geojson."MedialAxis_LineString" m2
-				WHERE m2.id = ANY (list_ids)
-				ORDER BY ST_LENGTH(ST_ShortestLine(m2.geom, new_geom)) ASC
-				LIMIT 1;
-
-				RAISE NOTICE '*****---      Found % ...', this_id;
+			--END LOOP;
 						
-				nr_matches = nr_matches + 1;
-				list_ids = ARRAY_REMOVE(list_ids, this_id);
-					
-				distance_end_start = ST_DISTANCE(end_pt, this_start_point);
-				distance_start_end = ST_DISTANCE(start_pt, this_end_point);
-				distance_end_end = ST_DISTANCE(end_pt, this_end_point);
-				distance_start_start = ST_DISTANCE(start_pt, this_start_point);
-				
-				distance_array = ARRAY[distance_end_start, distance_start_end, distance_end_end, distance_start_start];
-				
-				array_counter = 2;
-				array_pos = 1;
-				shortest_distance = distance_array[1];
-				
-				WHILE array_counter <= 4 
-				LOOP 
-
-					curr_distance = distance_array[array_counter];
-				
-					IF curr_distance < shortest_distance THEN
-						array_pos = array_counter;
-						shortest_distance = curr_distance;
-					END IF;
-					
-					--RAISE NOTICE '*****---      Checking dist array  % | % .. % | %', curr_distance, shortest_distance, array_pos, array_counter;
-										
-					array_counter = array_counter + 1;
-
-				END LOOP;
-				
-				--RAISE NOTICE '*****---      Choosing dist array  % ... %', array_pos, distance_array;
-				
-				IF array_pos = 1 THEN
-					extra_geom = ST_MAKELINE(end_pt, this_start_point);
-					new_geom = ST_MAKELINE(ARRAY[new_geom, extra_geom, this_geom]);
-					end_pt = this_end_point;
-				ELSIF array_pos = 2 THEN
-					extra_geom = ST_MAKELINE(this_end_point, start_pt);
-					new_geom = ST_MAKELINE(ARRAY[this_geom, extra_geom, new_geom]);
-					start_pt = this_start_point;
-				ELSIF array_pos = 3 THEN
-					extra_geom = ST_MAKELINE(end_pt, this_end_point);
-					new_geom = ST_MAKELINE(ARRAY[new_geom, extra_geom, ST_REVERSE(this_geom)]);
-					end_pt = this_start_point;
-				ELSIF array_pos = 4 THEN
-					extra_geom = ST_MAKELINE(this_start_point, start_pt);
-					new_geom = ST_MAKELINE(ARRAY[ST_REVERSE(this_geom), extra_geom, new_geom]);
-					start_pt = this_end_point;
-				ELSE
-				
-					RAISE EXCEPTION 'fid % - error creating link for %. Distance was % ...', r1.ogc_fid, this_id, ST_LENGTH(ST_ShortestLine(this_geom, new_geom)); 
-
-				END IF;
-			
-			END IF;	
-			
 		END LOOP;			
+
+		RAISE NOTICE '*****---     Updating geom for % ...', start_id;
 		
 		UPDATE import_geojson."MedialAxis_LineString"
 		SET geom = new_geom
@@ -356,85 +412,6 @@ BEGIN
 
     END LOOP;
 END$$;
-
-/***
-
-set up lookup tables
-
-***/
-
--- DROP TABLE IF EXISTS import_geojson."RestrictionTypes_Lookup";
-
-CREATE TABLE IF NOT EXISTS import_geojson."RestrictionTypes_Lookup"
-(
-    id SERIAL,
-    geojson_restriction_type_code character varying(50) COLLATE pg_catalog."default",
-    geojson_restriction_type_name character varying(50) COLLATE pg_catalog."default",
-    "BayLineTypeCode" integer,
-    CONSTRAINT "RestrictionTypes_Lookup_pkey" PRIMARY KEY (id)
-)
-
-TABLESPACE pg_default;
-
-ALTER TABLE IF EXISTS import_geojson."RestrictionTypes_Lookup"
-    OWNER to postgres;
-
--- Populate
-
-INSERT INTO import_geojson."RestrictionTypes_Lookup"(
-	geojson_restriction_type_code, geojson_restriction_type_name)
-SELECT DISTINCT restriction_type_codes, restriction_type_names
-FROM import_geojson."Parking_Restrictions_Polygon" i
-WHERE NOT EXISTS (
-	SELECT 1 FROM import_geojson."RestrictionTypes_Lookup" t
-	WHERE i.restriction_type_codes = t.geojson_restriction_type_code
-	AND i.restriction_type_names = t.geojson_restriction_type_name)
-;
-
-UPDATE import_geojson."RestrictionTypes_Lookup" As p
-	SET "BayLineTypeCode" = l."Code"
-	FROM toms_lookups."BayLineTypes" l
-	WHERE UPPER(p."geojson_restriction_type_name") = UPPER(l."Description");
-	
--- DROP TABLE IF EXISTS import_geojson."TimePeriods_Transfer";
-
-CREATE TABLE IF NOT EXISTS import_geojson."TimePeriods_Transfer"
-(
-    id SERIAL,
-    operating_hours character varying COLLATE pg_catalog."default",
-	exceptions character varying COLLATE pg_catalog."default",
-    "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
-    "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
-    "TimePeriodCode" integer,
-    "AdditionalConditionCode" integer,
-    "MaxStayID" integer,
-    "NoReturnID" integer,
-    "NoLoadingTimeID" integer,
-    CONSTRAINT "TimePeriods_Transfer_pkey" PRIMARY KEY (id),
-	UNIQUE (operating_hours, exceptions)
-)
-
-TABLESPACE pg_default;
-
-ALTER TABLE IF EXISTS import_geojson."TimePeriods_Transfer"
-    OWNER to postgres;
-	
--- Populate
-
-INSERT INTO import_geojson."TimePeriods_Transfer"(
-	operating_hours, exceptions)
-SELECT DISTINCT operating_hours, exceptions
-FROM import_geojson."Parking_Restrictions_Polygon" i
-WHERE NOT EXISTS (
-	SELECT 1 FROM import_geojson."TimePeriods_Transfer" t
-	WHERE i.operating_hours = t.operating_hours
-	AND i.exceptions = t.exceptions);
-	
-/***
-
-Now add lookup details manually ...
-
-***/
 
 
 /****
