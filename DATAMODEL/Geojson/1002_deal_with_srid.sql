@@ -5,6 +5,9 @@
 
 -- Loop through all the tables and change
 
+
+Actually better to use reproject in toolbox
+
 DO
 $do$
 DECLARE
@@ -19,9 +22,11 @@ BEGIN
         FROM  geometry_columns
         WHERE f_table_schema = import_schema
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I ALTER COLUMN %I TYPE Geometry(%I, 27700) USING ST_SetSRID(%I, 27700);',
+        EXECUTE format('ALTER TABLE %I.%I ALTER COLUMN %I TYPE Geometry(%I, 27700) USING ST_Transform(%I, 27700);',
             import_schema, row.f_table_name, row.f_geometry_column, row.type, row.f_geometry_column);
     END LOOP;
 
 END
 $do$;
+
+

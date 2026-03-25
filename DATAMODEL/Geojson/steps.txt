@@ -1,0 +1,39 @@
+Steps to load geoJson
+
+1. Setup project - follow through Supply setup to start of field survey
+ - may need to adjust slightly ...
+ 
+ To prepare bays/lines/etc
+
+1. Load geojson file(s) to into postgres using script
+2. Load layer(s) into QGIS and reproject layer to 27700 (in QGIS - Processing->reproject)
+3. 1003_ ...
+4. 1004 create standard tables
+5. Snap - 0.5; 1.5
+check for SKC
+check for short lines
+snap vertices together 0.9 (Use Lines and first layer so that bays are extended) and then 1.3 for bays to bays (check for short bays)
+checked for restrictions that are not on kerbline
+
+check for restrictions that have disappeared
+
+
+
+3. Make into single geometry (in QGIS - Processing->Multiparts to single parts)
+4. Add sequence
+5. Move to "standard tables" *** Need to ensure that there is a unique id transferred, i.e., GeometryID
+6. Add required fields
+7. Identify restriction types and make linkages
+8. identify time periods and make linkages
+
+Check for missed restrictions
+SELECT l1."GeometryID", l1."RestrictionTypeID", l2."GeometryID"
+FROM import_geojson."Merged_Bays_LineString" l1 LEFT JOIN import_geojson."Merged_Bays_LineString_Singl" l2 ON l1."GeometryID" = l2."GeometryID"
+WHERE l1."RestrictionTypeID" NOT IN (103, 147)
+AND l2."GeometryID" IS NULL
+ORDER BY l1."GeometryID"
+
+Run TOMs_import on polygon layers. Use tolerance of 0.5 for bays and 0.25 for lines
+
+8. Change to 
+

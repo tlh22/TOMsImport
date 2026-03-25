@@ -7,7 +7,10 @@ CREATE TABLE import_geojson."TimePeriods_Transfer"
     "TimePeriodDescription" character varying(254) COLLATE pg_catalog."default",
     "AdditionalConditionDescription" character varying(254) COLLATE pg_catalog."default",
     "TimePeriodCode" integer,
-    "AdditionalConditionCode" integer
+    "AdditionalConditionCode" integer,
+	"MaxStayID" integer,
+	"NoReturnID" integer,
+	"NoLoadingTimeID" integer
 )
 
 TABLESPACE pg_default;
@@ -20,32 +23,50 @@ ALTER TABLE import_geojson."TimePeriods_Transfer"
 
 INSERT INTO import_geojson."TimePeriods_Transfer"(
 	control_time_details)
-SELECT DISTINCT hours_of_operation
-FROM (SELECT hours_of_operation
+SELECT DISTINCT "Operating_hours"
+FROM (SELECT "Operating_hours"
      FROM import_geojson."Merged_Bays"
      UNION
-     SELECT hours_of_operation
+     SELECT "Operating_hours"
      FROM import_geojson."Merged_Lines") AS a;
 
 UPDATE import_geojson."TimePeriods_Transfer"
 SET "TimePeriodDescription" = control_time_details;
 
+
  ... manual update of values ...
 
-UPDATE import_geojson."TimePeriods_Transfer" As p
-	SET "TimePeriodCode"=l."Code"
-	FROM toms_lookups."TimePeriods" l
-	WHERE p."TimePeriodDescription" = l."Description"
-    AND p."TimePeriodCode" IS NULL;
 
 -- now update
 
 UPDATE import_geojson."Merged_Bays" As p
-	SET "TimePeriodID"=l."TimePeriodCode"
+	SET "TimePeriodID"=l."TimePeriodCode", "MaxStayID"=l."MaxStayID", "NoReturnID"=l."NoReturnID"
 	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
+	WHERE p."Operating_hours" = l.control_time_details;
 
 UPDATE import_geojson."Merged_Lines" As p
-	SET "NoWaitingTimeID"=l."TimePeriodCode"
+	SET "NoWaitingTimeID"=l."TimePeriodCode", "NoLoadingTimeID"=l."NoLoadingTimeID"
 	FROM import_geojson."TimePeriods_Transfer" l
-	WHERE p.hours_of_operation = l.control_time_details;
+	WHERE p."Operating_hours" = l.control_time_details;
+	
+-- Update TimePeriodsInUse
+
+INSERT INTO "toms_lookups"."TimePeriodsInUse" ("Code")
+SELECT "TimePeriodID"
+FROM (
+SELECT DISTINCT "TimePeriodID"
+FROM import_geojson."Merged_Bays"
+WHERE "TimePeriodID" IS NOT NULL
+UNION
+SELECT DISTINCT "NoWaitingTimeID"
+FROM import_geojson."Merged_Lines"
+WHERE "NoWaitingTimeID" IS NOT NULL
+UNION
+SELECT DISTINCT "NoLoadingTimeID"
+FROM import_geojson."Merged_Lines"
+WHERE "NoLoadingTimeID" IS NOT NULL
+) a
+WHERE "TimePeriodID" NOT IN (
+SELECT DISTINCT "Code"
+FROM "toms_lookups"."TimePeriodsInUse");
+

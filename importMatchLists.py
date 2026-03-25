@@ -28,12 +28,14 @@ class matchLists(object):
         #("Signage", "WTimePeriod"),
         #("type_of_en", "WLineType"),
         #("Type_Of_En", "WLineType"),
-        ("gid", "gid"),
+        ("id", "id"),
         ("GeometryID", "GeometryID"),
         ("RestrictionTypeID", "RestrictionTypeID"),
         ("GeomShapeID", "GeomShapeID"),
         ("AzimuthToRoadCentreLine", "AzimuthToRoadCentreLine"),
         ("TimePeriodID", "TimePeriodID"),
+        ("NoWaitingTimeID", "NoWaitingTimeID"),
+        ("NoLoadingTimeID", "NoLoadingTimeID"),
     ]
 
 
